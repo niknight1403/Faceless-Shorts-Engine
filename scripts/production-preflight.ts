@@ -18,7 +18,8 @@ export function validateProductionEnv(env: Record<string, string | undefined>): 
   if (!env.DATABASE_URL?.startsWith("postgresql://")) errors.push("DATABASE_URL_must_use_postgresql");
   if (!env.REDIS_URL?.startsWith("redis://") && !env.REDIS_URL?.startsWith("rediss://")) errors.push("REDIS_URL_must_use_redis");
   if (!env.MEDIA_STORAGE_DIR || !env.MEDIA_STORAGE_DIR.startsWith("/")) errors.push("MEDIA_STORAGE_DIR_must_be_absolute");
-  if (env.EXPO_PUBLIC_API_URL && !env.EXPO_PUBLIC_API_URL.startsWith("https://")) errors.push("EXPO_PUBLIC_API_URL_must_use_https");
+  if (!env.EXPO_PUBLIC_API_URL || env.EXPO_PUBLIC_API_URL.includes("example.com")) errors.push("EXPO_PUBLIC_API_URL_missing_or_placeholder");
+  else if (!/^https:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/[^\s]*)?$/i.test(env.EXPO_PUBLIC_API_URL)) errors.push("EXPO_PUBLIC_API_URL_must_be_a_valid_https_url");
   if (env.API_BIND && env.API_BIND !== "127.0.0.1" && env.API_BIND !== "localhost") warnings.push("API_BIND_is_not_loopback_put_TLS_proxy_and_firewall_in_front");
 
   if (env.PIPER_MODEL) enabledRoutes.push("piper-local");
@@ -44,6 +45,7 @@ function parseEnv(source: string): Record<string, string> {
     const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
     if (!match) continue;
     let value = match[2]!.trim();
+    if (!value.startsWith('"') && !value.startsWith("'")) value = value.replace(/\s+#.*$/, "").trim();
     if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
     result[match[1]!] = value;
   }
