@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import { validateProductionEnv } from "./production-preflight.js";
 
 const base = {
+  POSTGRES_USER: "shorts",
   POSTGRES_PASSWORD: "p".repeat(40),
   API_ACCESS_TOKEN: "a".repeat(40),
   ASSET_SIGNING_SECRET: "b".repeat(40),
   JWT_ACCESS_SECRET: "c".repeat(40),
-  DATABASE_URL: "postgresql://shorts:secret@postgres:5432/shorts_engine",
+  DATABASE_URL: "postgresql://shorts:" + "p".repeat(40) + "@postgres:5432/shorts_engine",
   REDIS_URL: "redis://redis:6379",
   MEDIA_STORAGE_DIR: "/var/lib/faceless-shorts/media",
   EXPO_PUBLIC_API_URL: "https://api.faceless-shorts.example.net",
@@ -53,4 +54,9 @@ test("production preflight strips trailing unquoted env comments", () => {
   const result = validateProductionEnv({ ...base, TTS_AI_ENABLED: "false # local-only TTS required" });
   assert.ok(!result.enabledRoutes.includes("tts-ai-free"));
   assert.ok(!result.warnings.some(w => w.includes("external_provider")));
+});
+
+test("production preflight detects mismatched PostgreSQL URL credentials", () => {
+  const result = validateProductionEnv({ ...base, DATABASE_URL: "postgresql://shorts:wrong@postgres:5432/shorts_engine" });
+  assert.ok(result.errors.includes("DATABASE_URL_password_must_match_POSTGRES_PASSWORD"));
 });
