@@ -35,12 +35,13 @@ jobs:
         working-directory: apps/mobile/android
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon --console=plain --stacktrace --max-workers=2 assembleDebug
+          ./gradlew --no-daemon --console=plain --stacktrace --max-workers=2 assembleRelease
       - name: Package APK as ZIP
         run: |
           mkdir -p dist
-          cp apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk dist/Faceless-Shorts.apk
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk dist/Faceless-Shorts.apk
           test -s dist/Faceless-Shorts.apk
+          unzip -l dist/Faceless-Shorts.apk | grep -q 'assets/index.android.bundle'
           cd dist
           zip -9 Faceless-Shorts-Android-APK.zip Faceless-Shorts.apk
       - uses: actions/upload-artifact@v4
