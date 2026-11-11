@@ -104,6 +104,27 @@ const server = createServer(async (req, res) => {
       ]);
       json(res, 200, { organizationId, role: membership.role, counts: { projects: projectCount, jobs: jobCount, completedJobs: completedCount, failedJobs: failedCount } }); return;
     }
+    if (req.method === "GET" && url.pathname === "/v1/projects") {
+      const session = await authenticate(req);
+      if (!session) { json(res, 401, { error: "unauthorized" }); return; }
+      const organizationIds = session.user.memberships.map(m => m.organizationId);
+      const projects = organizationIds.length ? await prisma.project.findMany({
+        where: { organizationId: { in: organizationIds } },
+        orderBy: { updatedAt: "desc" },
+        include: { jobs: { orderBy: { createdAt: "desc" }, take: 12, select: {
+          id: true, topic: true, language: true, status: true, progress: true,
+          errorCode: true, errorMessage: true, createdAt: true, updatedAt: true,
+          assets: { select: { id: true, kind: true, mimeType: true, sizeBytes: true } }
+        } } }
+      }) : [];
+      json(res, 200, { projects: projects.map(project => ({
+        id: project.id, name: project.name, description: project.description,
+        organizationId: project.organizationId, createdAt: project.createdAt,
+        jobs: project.jobs.map(job => ({ ...job, assets: job.assets.map(asset => ({
+          ...asset, sizeBytes: asset.sizeBytes?.toString() ?? null
+        })) }))
+      })) }); return;
+    }
     if (req.method === "GET" && url.pathname === "/v1/providers") {
       const [llm, tts, hub, visuals] = await Promise.all([connection.get("faceless:providers:llm"), connection.get("faceless:providers:tts"), connection.get("faceless:providers:hub"), connection.get("faceless:providers:visuals")]);
       json(res, 200, { freeOnly: true, llm: llm ? JSON.parse(llm) : [], tts: tts ? JSON.parse(tts) : [], visuals: visuals ? JSON.parse(visuals) : [], agentforgeHub: hub ? JSON.parse(hub) : null }); return;
