@@ -43,7 +43,13 @@ function assetDownloadUrl(asset: AssetRecord): string | null {
 }
 async function readBody<T = CreateJobBody>(req: import("node:http").IncomingMessage): Promise<T> {
   let raw = "";
-  for await (const chunk of req) { raw += chunk.toString(); if (raw.length > 16_384) throw new Error("body_too_large"); }
+  let byteLength = 0;
+  for await (const chunk of req) {
+    const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    byteLength += part.byteLength;
+    if (byteLength > 16_384) throw new Error("body_too_large");
+    raw += part.toString("utf8");
+  }
   return JSON.parse(raw || "{}") as T;
 }
 type AuthenticatedSession = { id: string; userId: string; expiresAt: Date; user: { id: string; email: string; name: string | null; memberships: Array<{ organizationId: string; role: string; organization: { id: string; name: string; slug: string } }> } };
