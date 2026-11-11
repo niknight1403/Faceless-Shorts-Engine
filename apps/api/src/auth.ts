@@ -5,15 +5,17 @@ const scrypt = promisify(scryptCallback);
 export const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 
 export async function verifyPassword(password: string, encoded: string | null): Promise<boolean> {
-  if (!encoded || password.length > 1024) return false;
-  const parts = encoded.split("$");
-  if (parts.length !== 6 || parts[0] !== "scrypt") return false;
-  const N = Number(parts[1]), r = Number(parts[2]), p = Number(parts[3]);
-  if (N !== 16384 || r !== 8 || p !== 1 || !/^[a-f0-9]{32}$/i.test(parts[4]!) || !/^[a-f0-9]{128}$/i.test(parts[5]!)) return false;
+  if (password.length > 1024) return false;
+  const parts = encoded?.split("$") ?? [];
+  const validFormat = parts.length === 6 && parts[0] === "scrypt" &&
+    Number(parts[1]) === 16384 && Number(parts[2]) === 8 && Number(parts[3]) === 1 &&
+    /^[a-f0-9]{32}$/i.test(parts[4] ?? "") && /^[a-f0-9]{128}$/i.test(parts[5] ?? "");
+  // Perform the same expensive KDF for unknown users to reduce account-enumeration timing leaks.
+  const salt = validFormat ? Buffer.from(parts[4]!, "hex") : Buffer.alloc(16);
+  const expected = validFormat ? Buffer.from(parts[5]!, "hex") : Buffer.alloc(64);
   try {
-    const expected = Buffer.from(parts[5]!, "hex");
-    const actual = await scrypt(password, Buffer.from(parts[4]!, "hex"), expected.length, { N, r, p }) as Buffer;
-    return actual.length === expected.length && timingSafeEqual(actual, expected);
+    const actual = await scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 }) as Buffer;
+    return validFormat && actual.length === expected.length && timingSafeEqual(actual, expected);
   } catch { return false; }
 }
 
