@@ -2,7 +2,7 @@ import { PrismaClient, JobStatus, AssetKind } from "@prisma/client";
 import { Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { mkdir, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { FreeRoutedScriptProvider } from "./routed-script-generator.js";
 import { TtsRouter } from "./tts-router.js";
 import { VisualRouter } from "./visual-router.js";
@@ -13,7 +13,9 @@ const connection = new Redis(process.env.REDIS_URL ?? "redis://127.0.0.1:6379", 
 const scriptProvider = new FreeRoutedScriptProvider();
 const ttsRouter = new TtsRouter();
 const visualRouter = new VisualRouter();
-const mediaRoot = resolve(process.env.MEDIA_STORAGE_DIR ?? "./data/media");
+const mediaStoragePath = process.env.MEDIA_STORAGE_DIR ?? "";
+if (!isAbsolute(mediaStoragePath)) throw new Error("MEDIA_STORAGE_DIR_must_be_an_absolute_shared_path");
+const mediaRoot = resolve(mediaStoragePath);
 
 const worker = new Worker("video-generation", async task => {
   const { videoJobId } = task.data as { videoJobId?: string };
