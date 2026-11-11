@@ -23,7 +23,7 @@ Duration is restricted to 10–180 seconds; topic text is limited to 500 charact
 
 The worker attempts script generation through the free LLM route cascade, then generates scene audio and visuals, burns scene narration into the MP4 with FFmpeg/libass, and stores the MP4, source assets and complete SRT captions in `MEDIA_STORAGE_DIR/<job-id>/`. A job is marked `COMPLETED` only after the rendered MP4 has been checked for a non-empty file and its VIDEO asset has been persisted.
 
-Failures are recorded with stage-specific codes such as `SCRIPT_GENERATION_FAILED`, `TTS_NO_FREE_ROUTE_AVAILABLE`, `VISUAL_GENERATION_FAILED`, and `VIDEO_RENDER_FAILED`. Provider availability is best-effort: free upstreams can rate-limit or become unavailable, and a configured route is not proof that a live request will succeed.
+Failures are recorded with stage-specific codes such as `SCRIPT_GENERATION_FAILED`, `TTS_NO_FREE_ROUTE_AVAILABLE`, `VISUAL_GENERATION_FAILED`, and `VIDEO_RENDER_FAILED`. The BullMQ job is configured for three attempts with exponential backoff; stage failures are re-thrown after recording their error so transient upstream or render failures actually trigger those retries. Before a retry regenerates media, prior database asset records for that job are cleared so deterministic storage keys do not collide. Provider availability is best-effort: free upstreams can rate-limit or become unavailable, and a configured route is not proof that a live request will succeed.
 
 ## Storage
 
