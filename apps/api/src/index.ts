@@ -21,8 +21,8 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", "http://localhost");
     if (req.method === "GET" && url.pathname === "/v1/providers") {
-      const [llm, tts] = await Promise.all([connection.get("faceless:providers:llm"), connection.get("faceless:providers:tts")]);
-      json(res, 200, { freeOnly: true, llm: llm ? JSON.parse(llm) : [], tts: tts ? JSON.parse(tts) : [] }); return;
+      const [llm, tts, hub] = await Promise.all([connection.get("faceless:providers:llm"), connection.get("faceless:providers:tts"), connection.get("faceless:providers:hub")]);
+      json(res, 200, { freeOnly: true, llm: llm ? JSON.parse(llm) : [], tts: tts ? JSON.parse(tts) : [], agentforgeHub: hub ? JSON.parse(hub) : null }); return;
     }
     if (req.method === "GET" && url.pathname === "/health/live") { json(res, 200, { status: "ok", service: "faceless-api" }); return; }
     if (req.method === "GET" && url.pathname === "/health/ready") {
