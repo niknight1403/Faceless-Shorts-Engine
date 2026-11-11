@@ -10,6 +10,7 @@
 
 ## Administrator access
 
+- End-user sessions can create video jobs only with EDITOR, ADMIN, or OWNER membership in the target project's organization; reading a job requires organization membership. Internal `API_ACCESS_TOKEN` requests remain privileged service-to-service operations.
 - `GET /v1/admin/overview` requires a valid session and an `x-organization-id` header for an organization where the caller is OWNER or ADMIN.
 - Role membership is reloaded from PostgreSQL for every admin request. A role in a client token is never trusted.
 - The admin overview returns counts only; it does not expose secrets, password hashes, or session tokens.
@@ -18,4 +19,4 @@
 
 Set `BOOTSTRAP_ADMIN_EMAIL` and a NEW password in the deployment's secret manager, configure `DATABASE_URL`, then run `pnpm admin:bootstrap` once. Do not pass secrets as command-line arguments or commit them. The earlier password shared in chat must not be reused; rotate it and use a new unique password. The bootstrap operation changes the password hash and grants ADMIN in the selected organization.
 
-The bootstrap script provisions the identity and membership; it does not create a hosted environment, set GitHub Actions secrets, or deploy the API. API access is only active after applying Prisma migrations and deploying the API with database connectivity.
+Apply the migration with `pnpm exec prisma migrate deploy` before starting the API. The bootstrap script provisions the identity and membership; it does not create a hosted environment, set GitHub Actions secrets, or deploy the API. API access is only active after applying Prisma migrations and deploying the API with database connectivity.
