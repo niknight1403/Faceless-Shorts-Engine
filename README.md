@@ -2,12 +2,12 @@
 
 ## Android APK build
 
-The GitHub Actions workflow **Android APK** creates an installable Android debug APK and a ZIP containing that APK. It uses Expo Prebuild and Gradle directly; no Expo account, EAS project ID, or `EXPO_TOKEN` is required.
+The GitHub Actions workflow **Android APK** creates a standalone Android release-variant APK and a ZIP containing that APK. The workflow verifies that the embedded `assets/index.android.bundle` is present, so the app does not depend on a running Metro server. It uses Expo Prebuild and Gradle directly; no Expo account, EAS project ID, or `EXPO_TOKEN` is required.
 
 - Run it manually from **Actions → Android APK → Run workflow**, or push a change under `apps/mobile/`.
 - Download the `Faceless-Shorts-Android-APK` artifact from the successful run.
 - The artifact contains both `Faceless-Shorts.apk` and `Faceless-Shorts-Android-APK.zip`.
-- This is a debug-signed test build, not a Play Store release. A production release requires a managed signing key and release configuration.
+- The current release-variant artifact is signed with the generated debug key for direct device testing. It embeds the JavaScript bundle and does not require Metro. A Play Store release still requires a managed production signing key, release configuration, and store checks.
 
 ## Initial administrator
 
