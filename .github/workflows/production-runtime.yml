@@ -1,0 +1,41 @@
+name: Production Runtime
+
+on:
+  pull_request:
+    branches: ["feat/bootstrap-foundation", "main"]
+    paths:
+      - "apps/api/**"
+      - "apps/workers/**"
+      - "packages/**"
+      - "prisma/**"
+      - "docker-compose.yml"
+      - ".env.production.example"
+      - ".github/workflows/production-runtime.yml"
+  push:
+    branches: ["feat/bootstrap-foundation"]
+    paths:
+      - "apps/api/**"
+      - "apps/workers/**"
+      - "packages/**"
+      - "prisma/**"
+      - "docker-compose.yml"
+      - ".env.production.example"
+      - ".github/workflows/production-runtime.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -f apps/api/Dockerfile -t faceless-api:ci .
+      - name: Build worker image
+        run: docker build -f apps/workers/Dockerfile -t faceless-worker:ci .
+      - name: Validate production Compose configuration
+        run: |
+          cp .env.production.example .env
+          docker compose config --quiet
