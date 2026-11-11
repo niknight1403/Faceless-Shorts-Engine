@@ -33,8 +33,11 @@ jobs:
         run: pnpm --filter @faceless/mobile exec expo prebuild --platform android --no-install --non-interactive
       - name: Build installable Android APK
         working-directory: apps/mobile/android
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
         run: |
           chmod +x ./gradlew
+          if [ -z "$EXPO_PUBLIC_API_URL" ]; then echo "::warning::EXPO_PUBLIC_API_URL is not configured; the app will show a backend-configuration error instead of calling localhost."; fi
           ./gradlew --no-daemon --console=plain --stacktrace --max-workers=2 assembleRelease
       - name: Package APK as ZIP
         run: |
