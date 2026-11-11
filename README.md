@@ -11,7 +11,11 @@ The GitHub Actions workflow **Android APK** creates a standalone Android release
 
 ### Mobile backend configuration
 
-Before building a usable phone app, add the repository Actions variable `EXPO_PUBLIC_API_URL` with the public HTTPS origin of the deployed API (for example `https://api.example.com`, without a trailing slash). The Android workflow injects this value at build time. If it is missing, the app now displays a clear configuration error and does not silently call `localhost` on the phone. This repository does not currently contain a deployed production API URL; a reachable API, PostgreSQL, Redis, worker, and shared media storage must be provisioned before end-to-end video generation can work.
+For a preconfigured build, add the repository Actions variable `EXPO_PUBLIC_API_URL` with the public HTTPS origin of the deployed API (for example `https://api.your-domain.de`, without a trailing slash). The Android workflow injects this value at build time and rejects non-HTTPS public origins.
+
+The APK can also be built without this variable for setup/testing: on first launch, open the backend setup field on the login screen and enter the reachable API origin. The app persists this setting in Android SecureStore. Bare hostnames default to HTTPS. Plain HTTP is accepted only for localhost and private/LAN IPv4 addresses; remote endpoints must use HTTPS. Do not enter credentials, query parameters, or tokens in the URL.
+
+This repository does not currently contain a deployed production API URL. A reachable API, PostgreSQL, Redis, worker, and shared media storage must be provisioned before end-to-end video generation can work. A successful APK build and emulator launch prove the mobile package starts; they do not prove a production backend or external media providers are live.
 
 ## Initial administrator
 
