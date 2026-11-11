@@ -41,7 +41,7 @@ const worker = new Worker("video-generation", async task => {
   let script;
   try {
     script = await scriptProvider.generate({ topic: job.topic, language: job.language, targetDurationSeconds: job.targetDurationSeconds });
-  } catch (error) { await fail("SCRIPT_GENERATION_FAILED", error, 10); return; }
+  } catch (error) { await fail("SCRIPT_GENERATION_FAILED", error, 10); throw error; }
   console.log("script planned for " + videoJobId + ": " + script.scenes.length + " scenes via " + scriptProvider.name);
 
   await connection.set("faceless:providers:llm", JSON.stringify(scriptProvider.routeStatus()), "EX", 300);
@@ -64,7 +64,7 @@ const worker = new Worker("video-generation", async task => {
       }});
       renderScenes.push({ imagePath: "", audioPath, durationMs: scene.durationMs, narration: scene.narration });
       console.log("voice scene " + (index + 1) + "/" + script.scenes.length + " generated via " + result.provider);
-    } catch (error) { await fail("TTS_NO_FREE_ROUTE_AVAILABLE", error, 20); return; }
+    } catch (error) { await fail("TTS_NO_FREE_ROUTE_AVAILABLE", error, 20); throw error; }
   }
 
   await prisma.videoJob.update({ where: { id: videoJobId }, data: { status: JobStatus.GENERATING_VISUALS, progress: 45 } });
@@ -81,7 +81,7 @@ const worker = new Worker("video-generation", async task => {
       }});
       renderScenes[index]!.imagePath = imagePath;
       console.log("visual scene " + (index + 1) + "/" + script.scenes.length + " generated via " + result.provider);
-    } catch (error) { await fail("VISUAL_GENERATION_FAILED", error, 45); return; }
+    } catch (error) { await fail("VISUAL_GENERATION_FAILED", error, 45); throw error; }
   }
 
   await prisma.videoJob.update({ where: { id: videoJobId }, data: { status: JobStatus.RENDERING, progress: 75 } });
@@ -105,7 +105,7 @@ const worker = new Worker("video-generation", async task => {
     }});
     await prisma.videoJob.update({ where: { id: videoJobId }, data: { status: JobStatus.COMPLETED, progress: 100, errorCode: null, errorMessage: null }});
     console.log("video job completed: " + videoJobId + " (" + videoStat.size + " bytes)");
-  } catch (error) { await fail("VIDEO_RENDER_FAILED", error, 75); return; }
+  } catch (error) { await fail("VIDEO_RENDER_FAILED", error, 75); throw error; }
 }, { connection, concurrency: Number(process.env.WORKER_CONCURRENCY ?? 2) });
 
 worker.on("completed", task => console.log("video job task completed: " + task.id));
