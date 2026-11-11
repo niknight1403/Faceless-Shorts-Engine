@@ -72,15 +72,46 @@ jobs:
               if (!payload.visuals.includes("pollinations-free")) process.exit(1);
             });
           '
-      - name: Seed isolated E2E project
-        id: seed
+      - name: Configure ephemeral E2E admin credentials and bootstrap
         shell: bash
         run: |
           set -euo pipefail
-          project_id="$(docker compose exec -T worker node --input-type=module -e '
+          admin_email="runtime-${GITHUB_RUN_ID}@example.test"
+          admin_password="$(openssl rand -base64 24 | tr -d '\\n')Aa1!"
+          echo "::add-mask::${admin_password}"
+          echo "BOOTSTRAP_ADMIN_EMAIL=${admin_email}" >> "$GITHUB_ENV"
+          echo "BOOTSTRAP_ADMIN_PASSWORD=${admin_password}" >> "$GITHUB_ENV"
+          docker compose exec -T \\
+            -e BOOTSTRAP_ADMIN_EMAIL="${admin_email}" \\
+            -e BOOTSTRAP_ADMIN_PASSWORD="${admin_password}" \\
+            worker pnpm admin:bootstrap
+      - name: Verify user login, session and admin authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail-with-body --silent --show-error \\
+            -H "content-type: application/json" \\
+            -d "{\\"email\\":\\"${BOOTSTRAP_ADMIN_EMAIL}\\",\\"password\\":\\"${BOOTSTRAP_ADMIN_PASSWORD}\\"}" \\
+            http://127.0.0.1:4000/v1/auth/login)"
+          session_token="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const v=JSON.parse(s);if(!v.accessToken)process.exit(1);process.stdout.write(v.accessToken)})')"
+          organization_id="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const v=JSON.parse(s);const o=v.organizations?.find(x=>x.role==="ADMIN");if(!o)process.exit(1);process.stdout.write(o.id)})')"
+          echo "::add-mask::${session_token}"
+          echo "SESSION_ACCESS_TOKEN=${session_token}" >> "$GITHUB_ENV"
+          echo "ADMIN_ORGANIZATION_ID=${organization_id}" >> "$GITHUB_ENV"
+          curl --fail --silent --show-error -H "authorization: Bearer ${session_token}" http://127.0.0.1:4000/v1/auth/me | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const v=JSON.parse(s);if(!v.user?.email||!v.organizations?.length)process.exit(1)})'
+          curl --fail --silent --show-error -H "authorization: Bearer ${session_token}" -H "x-organization-id: ${organization_id}" http://127.0.0.1:4000/v1/admin/overview | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const v=JSON.parse(s);if(v.role!=="ADMIN"||!v.counts)process.exit(1)})'
+      - name: Seed isolated E2E project
+        id: seed
+        shell: bash
+        env:
+          ADMIN_ORGANIZATION_ID: ${{ env.ADMIN_ORGANIZATION_ID }}
+        run: |
+          set -euo pipefail
+          project_id="$(docker compose exec -T -e ADMIN_ORGANIZATION_ID="$ADMIN_ORGANIZATION_ID" worker node --input-type=module -e '
             import { PrismaClient } from "@prisma/client";
             const prisma = new PrismaClient();
-            const organization = await prisma.organization.create({ data: { name: "Runtime E2E", slug: "runtime-e2e-" + Date.now() } });
+            const organization = await prisma.organization.findUnique({ where: { id: process.env.ADMIN_ORGANIZATION_ID } });
+            if (!organization) throw new Error("admin_organization_not_found");
             const project = await prisma.project.create({ data: { organizationId: organization.id, name: "Video pipeline smoke test" } });
             console.log(project.id);
             await prisma.$disconnect();
@@ -110,7 +141,7 @@ jobs:
           job_url="http://127.0.0.1:4000/v1/video-jobs/$JOB_ID"
           status=""
           for attempt in $(seq 1 90); do
-            payload="$(curl --fail --silent --show-error -H "authorization: Bearer $API_ACCESS_TOKEN" "$job_url")"
+            payload="$(curl --fail --silent --show-error -H "authorization: Bearer $SESSION_ACCESS_TOKEN" "$job_url")"
             status="$(printf '%s' "$payload" | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>console.log(JSON.parse(s).status))')"
             if [ "$status" = "COMPLETED" ]; then
               printf '%s' "$payload" > /tmp/runtime-e2e-job.json
