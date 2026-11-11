@@ -16,15 +16,15 @@ let API_URL = BUILD_API_URL;
  * localhost or a LAN address, which is how the self-hosted development backend is reached.
  */
 function normalizeApiUrl(value: string) {
-  const trimmed = value.trim().replace(/\\/+$/, "");
+  const trimmed = value.trim().replace(/\/+$/, "");
   if (!trimmed) return "";
-  const candidate = /^https?:\\/\\//i.test(trimmed) ? trimmed : "https://" + trimmed;
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : "https://" + trimmed;
   let parsed: URL;
   try { parsed = new URL(candidate); } catch { throw new Error("Ungültige Backend-Adresse."); }
   if (parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new Error("Die Backend-Adresse darf keine Zugangsdaten, Query-Parameter oder Fragmente enthalten.");
   }
-  const hostname = parsed.hostname.toLowerCase().replace(/^\\[|\\]$/g, "");
+  const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   const octets = hostname.split(".").map(Number);
   const ipv4 = octets.length === 4 && octets.every(part => Number.isInteger(part) && part >= 0 && part <= 255);
   const privateIpv4 = ipv4 && (
