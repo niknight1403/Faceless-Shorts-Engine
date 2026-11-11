@@ -1,3 +1,4 @@
+import { readBoundedResponse } from "./http-response.js";
 export interface VisualRequest {
   prompt: string;
   width?: number;
@@ -68,7 +69,7 @@ export class PollinationsVisualProvider implements VisualProvider {
       throw new Error("visual_provider_unsupported_content_type:" + mimeType);
     }
 
-    const image = Buffer.from(await response.arrayBuffer());
+    const image = await readBoundedResponse(response, 20971520, "visual_provider_image");
     if (image.byteLength < 1024) {
       throw new Error("visual_provider_image_too_small");
     }
