@@ -2,6 +2,9 @@ name: Android diagnostics
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/android-diagnostics.yml"
 
 permissions:
   contents: read
