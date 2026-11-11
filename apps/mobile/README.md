@@ -17,6 +17,7 @@ Run `pnpm --filter @faceless/mobile dev` from the repository root. The Expo web 
 - Email/password login against `POST /v1/auth/login`.
 - Membership-scoped project list from `GET /v1/projects`.
 - Video job creation through `POST /v1/video-jobs`.
-- Recent job status/progress and an organization admin summary for OWNER/ADMIN members.
+- Recent job status/progress, signed MP4 download links, and an organization admin summary for OWNER/ADMIN members.
+- Organization-scoped project creation for OWNER/ADMIN/EDITOR members.
 
-The bearer session is kept in memory and cleared on logout or app restart. A future release should use the platform secure credential store and configure a production HTTPS API origin. Provider credentials and the internal `API_ACCESS_TOKEN` must never be embedded in the app.
+The bearer session is stored with `expo-secure-store` (Android Keystore-backed secure storage / iOS Keychain) and restored on app start by validating it through `GET /v1/auth/me`. Logout revokes the server session and deletes the local credential. Configure a production HTTPS API origin before release. Provider credentials and the internal `API_ACCESS_TOKEN` must never be embedded in the app.
