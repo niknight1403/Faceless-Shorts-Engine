@@ -13,3 +13,21 @@ test("visual router fails closed when provider is unavailable", async () => {
   const router = new VisualRouter([{ id: "offline", async generate() { throw new Error("offline"); } }]);
   await assert.rejects(router.generate({ prompt: "test" }), /no_visual_route_available:offline:offline/);
 });
+
+test("visual provider rejects unbounded image dimensions before network access", async () => {
+  let requested = false;
+  const provider = new PollinationsVisualProvider(async () => {
+    requested = true;
+    return new Response(new Uint8Array(2048), { status: 200, headers: { "content-type": "image/jpeg" } });
+  });
+  await assert.rejects(() => provider.generate({ prompt: "A scene", width: 8192, height: 1280 }), /visual_dimensions_must_be_integers/);
+  assert.equal(requested, false);
+});
+
+test("visual provider rejects empty or excessively long prompts", async () => {
+  const provider = new PollinationsVisualProvider(async () => {
+    throw new Error("network_must_not_be_called");
+  });
+  await assert.rejects(() => provider.generate({ prompt: " " }), /visual_prompt_must_be_1_to_2000_characters/);
+  await assert.rejects(() => provider.generate({ prompt: "x".repeat(2001) }), /visual_prompt_must_be_1_to_2000_characters/);
+});
