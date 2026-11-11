@@ -13,7 +13,7 @@ test("free route hunter fails over after provider failure and records health", a
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input); calls.push(url);
     if (url.includes("primary")) return new Response("limited", { status: 429 });
-    return new Response(JSON.stringify({ choices: [{ message: { content: "{\\"ok\\":true}" } }] }), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }), { status: 200, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
   try {
     const result = await hunter.generate("return JSON");
@@ -23,10 +23,7 @@ test("free route hunter fails over after provider failure and records health", a
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test("paid-only route is never admitted", async () => {
-  const hunter = new FreeRouteHunter([{ id: "paid", model: "paid-model", baseUrl: "https://paid.invalid/v1", priority: 1, free: true }]);
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () => new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 })) as typeof fetch;
-  try { assert.equal((await hunter.generate("prompt")).provider, "paid"); }
-  finally { globalThis.fetch = originalFetch; }
+test("route hunter reports when no free route is configured", async () => {
+  const hunter = new FreeRouteHunter([]);
+  await assert.rejects(() => hunter.generate("prompt"), /no_free_llm_route_available/);
 });
