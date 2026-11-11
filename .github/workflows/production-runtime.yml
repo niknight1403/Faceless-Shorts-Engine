@@ -85,18 +85,13 @@ jobs:
           echo "::add-mask::${admin_password}"
           echo "BOOTSTRAP_ADMIN_EMAIL=${admin_email}" >> "$GITHUB_ENV"
           echo "BOOTSTRAP_ADMIN_PASSWORD=${admin_password}" >> "$GITHUB_ENV"
-          docker compose exec -T \\
-            -e BOOTSTRAP_ADMIN_EMAIL="${admin_email}" \\
-            -e BOOTSTRAP_ADMIN_PASSWORD="${admin_password}" \\
-            worker pnpm admin:bootstrap
+          docker compose exec -T -e BOOTSTRAP_ADMIN_EMAIL="$admin_email" -e BOOTSTRAP_ADMIN_PASSWORD="$admin_password" worker pnpm admin:bootstrap
       - name: Verify user login, session and admin authorization
         shell: bash
         run: |
           set -euo pipefail
-          response="$(curl --fail-with-body --silent --show-error \\
-            -H "content-type: application/json" \\
-            -d "{\\"email\\":\\"${BOOTSTRAP_ADMIN_EMAIL}\\",\\"password\\":\\"${BOOTSTRAP_ADMIN_PASSWORD}\\"}" \\
-            http://127.0.0.1:4000/v1/auth/login)"
+          login_payload="$(node -e 'process.stdout.write(JSON.stringify({email:process.env.BOOTSTRAP_ADMIN_EMAIL,password:process.env.BOOTSTRAP_ADMIN_PASSWORD}))')"
+          response="$(curl --fail-with-body --silent --show-error -H "content-type: application/json" -d "$login_payload" http://127.0.0.1:4000/v1/auth/login)"
           session_token="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const v=JSON.parse(s);if(!v.accessToken)process.exit(1);process.stdout.write(v.accessToken)})')"
           organization_id="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const v=JSON.parse(s);const o=v.organizations?.find(x=>x.role==="ADMIN");if(!o)process.exit(1);process.stdout.write(o.id)})')"
           echo "::add-mask::${session_token}"
