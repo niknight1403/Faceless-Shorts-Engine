@@ -14,6 +14,8 @@ permissions:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +33,9 @@ jobs:
         run: pnpm install --no-frozen-lockfile
       - name: Generate native Android project
         run: pnpm --filter @faceless/mobile exec expo prebuild --platform android --no-install --non-interactive
+      - name: Validate production API origin
+        run: |
+          node -e 'const value = process.env.EXPO_PUBLIC_API_URL ?? ""; let url; try { url = new URL(value); } catch { process.exit(1); } if (url.protocol !== "https:" || !url.hostname) { console.error("Set the GitHub Actions repository variable EXPO_PUBLIC_API_URL to the public HTTPS API origin before building a standalone APK."); process.exit(1); }'
       - name: Build installable Android APK
         working-directory: apps/mobile/android
         run: |
