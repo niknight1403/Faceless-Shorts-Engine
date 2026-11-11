@@ -1,4 +1,6 @@
 import { StatusBar } from "expo-status-bar";
+
+declare const process: { env: { EXPO_PUBLIC_API_URL?: string } };
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator, Alert, Pressable, RefreshControl, SafeAreaView,
@@ -17,14 +19,10 @@ type Project = { id: string; name: string; description?: string | null; organiza
 type AdminOverview = { role: string; counts: { projects: number; jobs: number; completedJobs: number; failedJobs: number } };
 
 async function api<T>(path: string, token?: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(API_URL + path, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      ...(token ? { authorization: "Bearer " + token } : {}),
-      ...init.headers
-    }
-  });
+  const headers = new Headers(init.headers);
+  headers.set("content-type", "application/json");
+  if (token) headers.set("authorization", "Bearer " + token);
+  const response = await fetch(API_URL + path, { ...init, headers });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : "API request failed (" + response.status + ")");
   return body as T;
