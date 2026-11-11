@@ -17,7 +17,7 @@ Signed asset URLs expire after 15 minutes. They are bearer links: anyone who obt
 
 Payload: `{ "projectId": "existing-id", "topic": "video topic", "language": "de", "targetDurationSeconds": 45, "targetPlatforms": ["youtube_shorts"], "idempotencyKey": "unique-client-key" }`.
 
-Duration is restricted to 10–180 seconds. Reusing an idempotency key returns the existing job. A project must exist. Configure `DATABASE_URL` and `REDIS_URL` for both services and run Prisma generate/migrations before startup.
+Duration is restricted to 10–180 seconds; topic text is limited to 500 characters; language must be a BCP-47-like tag such as `de` or `en-US`; and platforms are limited to unique values from `youtube_shorts`, `tiktok`, and `instagram` (maximum three). An optional idempotency key must contain 8–128 safe ASCII characters. Reusing an idempotency key returns the existing job for the same project and returns `409` if it belongs to another project. A project must exist. Configure `DATABASE_URL` and `REDIS_URL` for both services and run Prisma generate/migrations before startup.
 
 ## Worker pipeline
 
