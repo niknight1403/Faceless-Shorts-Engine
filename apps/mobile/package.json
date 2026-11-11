@@ -2,7 +2,7 @@
   "name": "@faceless/mobile",
   "version": "0.1.0",
   "private": true,
-  "main": "expo/AppEntry",
+  "main": "./App.tsx",
   "scripts": {
     "dev": "expo start",
     "android": "expo start --android",
