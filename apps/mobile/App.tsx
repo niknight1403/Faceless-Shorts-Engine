@@ -1,7 +1,8 @@
 import { StatusBar } from "expo-status-bar";
 
 declare const process: { env: { EXPO_PUBLIC_API_URL?: string } };
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import * as SecureStore from "expo-secure-store";
 import {
   ActivityIndicator, Alert, Linking, Pressable, RefreshControl, SafeAreaView,
   ScrollView, StyleSheet, Text, TextInput, View
@@ -52,6 +53,7 @@ export default function App() {
   const [topic, setTopic] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sessionChecking, setSessionChecking] = useState(true);
   const [error, setError] = useState("");
 
   const loadDashboard = useCallback(async (sessionToken: string, orgs: Organization[]) => {
@@ -73,6 +75,28 @@ export default function App() {
     finally { setLoading(false); }
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    const restoreSession = async () => {
+      try {
+        const savedToken = await SecureStore.getItemAsync("faceless.session");
+        if (!savedToken) return;
+        const current = await api<{ user: { email: string }; organizations: Organization[] }>("/v1/auth/me", savedToken);
+        if (!active) return;
+        setToken(savedToken);
+        setUserEmail(current.user.email);
+        setOrganizations(current.organizations);
+        await loadDashboard(savedToken, current.organizations);
+      } catch {
+        await SecureStore.deleteItemAsync("faceless.session").catch(() => undefined);
+      } finally {
+        if (active) setSessionChecking(false);
+      }
+    };
+    void restoreSession();
+    return () => { active = false; };
+  }, [loadDashboard]);
+
   const signIn = async () => {
     if (!email.trim() || !password) { setError("Bitte E-Mail und Passwort eingeben."); return; }
     setBusy(true); setError("");
@@ -80,6 +104,7 @@ export default function App() {
       const result = await api<{ accessToken: string; user: { email: string }; organizations: Organization[] }>("/v1/auth/login", undefined, {
         method: "POST", body: JSON.stringify({ email: email.trim(), password })
       });
+      await SecureStore.setItemAsync("faceless.session", result.accessToken);
       setToken(result.accessToken); setUserEmail(result.user.email); setOrganizations(result.organizations);
       setPassword("");
       await loadDashboard(result.accessToken, result.organizations);
@@ -128,13 +153,16 @@ export default function App() {
 
   const signOut = async () => {
     if (token) { try { await api("/v1/auth/logout", token, { method: "POST" }); } catch { /* local sign-out still clears the session */ } }
+    await SecureStore.deleteItemAsync("faceless.session").catch(() => undefined);
     setToken(null); setProjects([]); setOrganizations([]); setAdmin(null); setUserEmail(""); setPassword("");
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="light" />
-      {!token ? (
+      {sessionChecking ? (
+        <View style={styles.loginWrap}><ActivityIndicator color="#78E2C0" size="large" /><Text style={styles.hint}>Sitzung wird sicher wiederhergestellt …</Text></View>
+      ) : !token ? (
         <View style={styles.loginWrap}>
           <Text style={styles.eyebrow}>FACELESS / STUDIO</Text>
           <Text style={styles.title}>Deine Story.{"\n"}Dein Studio.</Text>
@@ -149,7 +177,7 @@ export default function App() {
             <Pressable style={[styles.primaryButton, busy && styles.disabled]} onPress={signIn} disabled={busy}>
               {busy ? <ActivityIndicator color="#08110F" /> : <Text style={styles.primaryText}>Sicher anmelden</Text>}
             </Pressable>
-            <Text style={styles.hint}>API: {API_URL} · Sitzung bleibt bis zum Abmelden nur im Arbeitsspeicher.</Text>
+            <Text style={styles.hint}>API: {API_URL} · Sitzung wird verschlüsselt auf diesem Gerät gespeichert und kann jederzeit widerrufen werden.</Text>
           </View>
         </View>
       ) : (
