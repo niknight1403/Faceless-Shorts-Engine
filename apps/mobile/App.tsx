@@ -3,14 +3,14 @@ import { StatusBar } from "expo-status-bar";
 declare const process: { env: { EXPO_PUBLIC_API_URL?: string } };
 import { useCallback, useState } from "react";
 import {
-  ActivityIndicator, Alert, Pressable, RefreshControl, SafeAreaView,
+  ActivityIndicator, Alert, Linking, Pressable, RefreshControl, SafeAreaView,
   ScrollView, StyleSheet, Text, TextInput, View
 } from "react-native";
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
 
 type Organization = { id: string; name: string; slug: string; role: string };
-type Asset = { id: string; kind: string; mimeType: string; sizeBytes: string | null };
+type Asset = { id: string; kind: string; mimeType: string; sizeBytes: string | null; downloadUrl?: string | null };
 type VideoJob = {
   id: string; topic: string; language: string; status: string; progress: number;
   errorCode?: string | null; errorMessage?: string | null; createdAt: string; assets: Asset[];
@@ -212,6 +212,11 @@ export default function App() {
                     <Text style={styles.jobTitle} numberOfLines={2}>{job.topic}</Text>
                     <Text style={styles.hint}>{statusLabel(job.status)} · {new Date(job.createdAt).toLocaleDateString("de-DE")}</Text>
                     {!!job.errorCode && <Text style={styles.error}>{job.errorCode}</Text>}
+                    {job.assets.filter(asset => asset.kind === "VIDEO" && asset.downloadUrl).map(asset => (
+                      <Pressable key={asset.id} onPress={() => void Linking.openURL(API_URL + asset.downloadUrl)}>
+                        <Text style={styles.link}>MP4 öffnen / herunterladen ↗</Text>
+                      </Pressable>
+                    ))}
                   </View>
                   <Text style={[styles.progress, job.status === "COMPLETED" ? styles.success : job.status === "FAILED" ? styles.failure : null]}>{job.progress}%</Text>
                 </View>
