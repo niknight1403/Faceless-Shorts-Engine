@@ -125,6 +125,26 @@ const server = createServer(async (req, res) => {
         })) }))
       })) }); return;
     }
+    if (req.method === "POST" && url.pathname === "/v1/projects") {
+      const session = await authenticate(req);
+      if (!session) { json(res, 401, { error: "unauthorized" }); return; }
+      const body = await readBody<{ organizationId?: string; name?: string; description?: string }>(req);
+      const organizationId = body.organizationId?.trim() ?? "";
+      const name = body.name?.trim() ?? "";
+      const description = body.description?.trim() ?? "";
+      if (!organizationId || name.length < 2 || name.length > 80 || description.length > 500) {
+        json(res, 400, { error: "organizationId_and_valid_project_name_required" }); return;
+      }
+      const membership = session.user.memberships.find(m => m.organizationId === organizationId);
+      if (!membership) { json(res, 404, { error: "organization_not_found" }); return; }
+      if (!["OWNER", "ADMIN", "EDITOR"].includes(membership.role)) {
+        json(res, 403, { error: "project_write_access_required" }); return;
+      }
+      const project = await prisma.project.create({ data: {
+        organizationId, name, description: description || null
+      }});
+      json(res, 201, { project }); return;
+    }
     if (req.method === "GET" && url.pathname === "/v1/providers") {
       const [llm, tts, hub, visuals] = await Promise.all([connection.get("faceless:providers:llm"), connection.get("faceless:providers:tts"), connection.get("faceless:providers:hub"), connection.get("faceless:providers:visuals")]);
       json(res, 200, { freeOnly: true, llm: llm ? JSON.parse(llm) : [], tts: tts ? JSON.parse(tts) : [], visuals: visuals ? JSON.parse(visuals) : [], agentforgeHub: hub ? JSON.parse(hub) : null }); return;
