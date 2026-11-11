@@ -164,11 +164,27 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "POST" && url.pathname === "/v1/video-jobs") {
       const body = await readBody(req);
-      if (!body.projectId || !body.topic?.trim()) { json(res, 400, { error: "projectId_and_topic_required" }); return; }
+      if (typeof body.projectId !== "string" || !body.projectId.trim() ||
+          typeof body.topic !== "string" || !body.topic.trim() || body.topic.trim().length > 500) {
+        json(res, 400, { error: "projectId_and_topic_required_topic_max_500_chars" }); return;
+      }
       const duration = body.targetDurationSeconds ?? 45;
       if (!Number.isInteger(duration) || duration < 10 || duration > 180) { json(res, 400, { error: "targetDurationSeconds_must_be_10_to_180" }); return; }
+      const language = body.language ?? "de";
+      if (typeof language !== "string" || !/^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(language)) {
+        json(res, 400, { error: "language_must_be_a_valid_language_tag" }); return;
+      }
+      const allowedPlatforms = new Set(["youtube_shorts", "tiktok", "instagram"]);
       const platforms = body.targetPlatforms ?? ["youtube_shorts"];
-      if (!Array.isArray(platforms) || !platforms.length || platforms.some(p => typeof p !== "string")) { json(res, 400, { error: "targetPlatforms_must_be_non_empty_strings" }); return; }
+      if (!Array.isArray(platforms) || !platforms.length || platforms.length > 3 ||
+          platforms.some(p => typeof p !== "string" || !allowedPlatforms.has(p)) ||
+          new Set(platforms).size !== platforms.length) {
+        json(res, 400, { error: "targetPlatforms_must_be_unique_supported_platforms" }); return;
+      }
+      if (body.idempotencyKey !== undefined &&
+          (typeof body.idempotencyKey !== "string" || !/^[A-Za-z0-9._:-]{8,128}$/.test(body.idempotencyKey))) {
+        json(res, 400, { error: "idempotencyKey_must_be_8_to_128_safe_characters" }); return;
+      }
       const project = await prisma.project.findUnique({ where: { id: body.projectId } });
       if (!project) { json(res, 404, { error: "project_not_found" }); return; }
       if (jobSession) {
@@ -184,7 +200,7 @@ const server = createServer(async (req, res) => {
         }
       }
       const job = await prisma.videoJob.create({ data: {
-        projectId: body.projectId, topic: body.topic.trim(), language: body.language ?? "de",
+        projectId: body.projectId, topic: body.topic.trim(), language,
         targetDurationSeconds: duration, targetPlatforms: platforms, status: JobStatus.QUEUED,
         idempotencyKey: body.idempotencyKey
       }});
