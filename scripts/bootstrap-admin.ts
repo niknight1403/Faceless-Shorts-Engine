@@ -16,7 +16,7 @@ async function main() {
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "";
   const organizationName = process.env.BOOTSTRAP_ADMIN_ORGANIZATION?.trim() || "Faceless Shorts";
   const forcePasswordReset = process.env.BOOTSTRAP_ADMIN_FORCE_RESET === "true";
-  if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) throw new Error("BOOTSTRAP_ADMIN_EMAIL_invalid_or_missing");
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("BOOTSTRAP_ADMIN_EMAIL_invalid_or_missing");
   if (password.length < 14) throw new Error("BOOTSTRAP_ADMIN_PASSWORD_must_be_at_least_14_characters");
   if (password.length > 1024) throw new Error("BOOTSTRAP_ADMIN_PASSWORD_too_long");
 
