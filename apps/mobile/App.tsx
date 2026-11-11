@@ -47,6 +47,8 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [admin, setAdmin] = useState<AdminOverview | null>(null);
   const [selectedProject, setSelectedProject] = useState("");
+  const [projectName, setProjectName] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
   const [topic, setTopic] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -86,6 +88,25 @@ export default function App() {
   };
 
   const refresh = async () => { if (token) await loadDashboard(token, organizations); };
+
+  const createProject = async () => {
+    const organization = organizations.find(org => ["OWNER", "ADMIN", "EDITOR"].includes(org.role));
+    if (!token || !organization || projectName.trim().length < 2) {
+      setError("Projektname und Schreibzugriff auf eine Organisation sind erforderlich."); return;
+    }
+    setBusy(true); setError("");
+    try {
+      const result = await api<{ project: Project }>("/v1/projects", token, {
+        method: "POST",
+        body: JSON.stringify({ organizationId: organization.id, name: projectName.trim(), description: projectDescription.trim() })
+      });
+      setProjectName(""); setProjectDescription("");
+      await loadDashboard(token, organizations);
+      setSelectedProject(result.project.id);
+      Alert.alert("Projekt erstellt", "Dein neues Projekt ist bereit.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Projekt konnte nicht erstellt werden"); }
+    finally { setBusy(false); }
+  };
 
   const createJob = async () => {
     if (!token || !selectedProject || !topic.trim()) { setError("Projekt und Videothema sind erforderlich."); return; }
@@ -153,6 +174,14 @@ export default function App() {
               </View>
             </View>
           )}
+          <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Neues Projekt</Text><Text style={styles.hint}>Organisation: {organizations.find(org => ["OWNER", "ADMIN", "EDITOR"].includes(org.role))?.name ?? "Keine Schreibberechtigung"}</Text></View>
+          <View style={styles.panel}>
+            <TextInput value={projectName} onChangeText={setProjectName} placeholder="Projektname" placeholderTextColor="#66738D" style={styles.input} maxLength={80} />
+            <TextInput value={projectDescription} onChangeText={setProjectDescription} placeholder="Beschreibung (optional)" placeholderTextColor="#66738D" style={styles.input} maxLength={500} />
+            <Pressable style={[styles.primaryButton, (busy || !organizations.some(org => ["OWNER", "ADMIN", "EDITOR"].includes(org.role))) && styles.disabled]} onPress={createProject} disabled={busy || !organizations.some(org => ["OWNER", "ADMIN", "EDITOR"].includes(org.role))}>
+              <Text style={styles.primaryText}>Projekt anlegen</Text>
+            </Pressable>
+          </View>
           <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Neues Video</Text><Text style={styles.hint}>45 Sekunden · Hochformat</Text></View>
           <View style={styles.panel}>
             <Text style={styles.label}>PROJEKT</Text>
