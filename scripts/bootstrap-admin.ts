@@ -15,16 +15,21 @@ async function main() {
   const email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase();
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "";
   const organizationName = process.env.BOOTSTRAP_ADMIN_ORGANIZATION?.trim() || "Faceless Shorts";
+  const forcePasswordReset = process.env.BOOTSTRAP_ADMIN_FORCE_RESET === "true";
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("BOOTSTRAP_ADMIN_EMAIL_invalid_or_missing");
   if (password.length < 14) throw new Error("BOOTSTRAP_ADMIN_PASSWORD_must_be_at_least_14_characters");
   if (password.length > 1024) throw new Error("BOOTSTRAP_ADMIN_PASSWORD_too_long");
 
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+  if (existingUser?.passwordHash && !forcePasswordReset) {
+    throw new Error("admin_already_exists_set_BOOTSTRAP_ADMIN_FORCE_RESET=true_to_rotate_password");
+  }
   const hash = await passwordHash(password);
   const slug = organizationName.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "faceless-shorts";
   const user = await prisma.user.upsert({
     where: { email },
     create: { email, name: "Niko", passwordHash: hash },
-    update: { passwordHash: hash, name: "Niko" }
+    update: { passwordHash: hash, name: existingUser?.name ?? "Niko" }
   });
   const organization = await prisma.organization.upsert({
     where: { slug },
