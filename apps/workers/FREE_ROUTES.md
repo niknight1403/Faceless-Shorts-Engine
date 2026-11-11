@@ -7,7 +7,7 @@ OpenRouter is accepted only with `openrouter/free` or a model ID ending in `:fre
 ## LLM environment
 
 - `OLLAMA_BASE_URL` (default `http://127.0.0.1:11434/v1`), `OLLAMA_MODEL`
-- `GROQ_API_KEY`, optional `GROQ_MODEL`
+- `CEREBRAS_API_KEY` plus `CEREBRAS_FREE_TRIAL_ENABLED=true` (explicit opt-in; verify the account remains on the free-trial tier), optional `CEREBRAS_MODEL`\n- `GROQ_API_KEY`, optional `GROQ_MODEL`
 - `GEMINI_API_KEY`, optional `GEMINI_MODEL`
 - `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, optional `CLOUDFLARE_AI_MODEL`
 - `OPENROUTER_API_KEY`, optional `OPENROUTER_MODEL` (must be `openrouter/free` or end in `:free`)
