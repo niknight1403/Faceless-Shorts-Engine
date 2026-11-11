@@ -32,6 +32,8 @@ type VideoJob = {
 };
 type Project = { id: string; name: string; description?: string | null; organizationId: string; jobs: VideoJob[] };
 type AdminOverview = { role: string; counts: { projects: number; jobs: number; completedJobs: number; failedJobs: number } };
+type ProviderEntry = string | { id?: string; provider?: string; model?: string; name?: string };
+type ProviderStatus = { freeOnly: boolean; llm: ProviderEntry[]; tts: ProviderEntry[]; visuals: ProviderEntry[] };
 
 async function api<T>(path: string, token?: string, init: RequestInit = {}): Promise<T> {
   if (!API_URL) throw new Error("Backend-Adresse fehlt. EXPO_PUBLIC_API_URL muss beim Android-Build als HTTPS-Adresse gesetzt sein.");
@@ -62,6 +64,7 @@ export default function App() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [admin, setAdmin] = useState<AdminOverview | null>(null);
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null);
   const [selectedProject, setSelectedProject] = useState("");
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
@@ -79,6 +82,8 @@ export default function App() {
       const result = await api<{ projects: Project[] }>("/v1/projects", sessionToken);
       setProjects(result.projects);
       setSelectedProject(current => result.projects.some(p => p.id === current) ? current : (result.projects[0]?.id ?? ""));
+      try { setProviderStatus(await api<ProviderStatus>("/v1/providers", sessionToken)); }
+      catch { setProviderStatus(null); }
       const adminOrg = orgs.find(org => org.role === "ADMIN" || org.role === "OWNER");
       if (adminOrg) {
         try {
@@ -252,6 +257,15 @@ export default function App() {
             </View>
             <Pressable onPress={signOut} style={styles.ghostButton}><Text style={styles.ghostText}>Abmelden</Text></Pressable>
           </View>
+          {providerStatus && (
+            <View style={styles.panel}>
+              <Text style={styles.panelTitle}>Free Route Hunter</Text>
+              <Text style={styles.hint}>{providerStatus.freeOnly ? "Free-only Routing aktiv" : "Provider-Konfiguration prüfen"}</Text>
+              <ProviderLine label="LLM" routes={providerStatus.llm} />
+              <ProviderLine label="TTS" routes={providerStatus.tts} />
+              <ProviderLine label="VISUALS" routes={providerStatus.visuals} />
+            </View>
+          )}
           {admin && (
             <View style={styles.panel}>
               <Text style={styles.panelTitle}>Admin-Übersicht</Text>
@@ -324,6 +338,16 @@ function Metric({ value, label }: { value: number; label: string }) {
   return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.hint}>{label}</Text></View>;
 }
 
+function ProviderLine({ label, routes }: { label: string; routes: ProviderEntry[] }) {
+  const names = routes.map(route => typeof route === "string" ? route : route.id ?? route.provider ?? route.model ?? route.name ?? "Route");
+  return (
+    <View style={styles.providerLine}>
+      <Text style={styles.providerLabel}>{label}</Text>
+      <Text style={styles.providerValue}>{names.length ? names.join(" · ") : "Noch keine Route gemeldet"}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#090B12" },
   loginWrap: { flex: 1, justifyContent: "center", padding: 24, gap: 16 },
@@ -348,6 +372,9 @@ const styles = StyleSheet.create({
   sectionTitle: { color: "#F5F7FF", fontSize: 19, fontWeight: "800" },
   link: { color: "#78E2C0", fontSize: 12, fontWeight: "700" },
   metrics: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
+  providerLine: { borderTopWidth: 1, borderTopColor: "#253149", paddingTop: 8, gap: 3 },
+  providerLabel: { color: "#78E2C0", fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
+  providerValue: { color: "#C5CEE0", fontSize: 11, lineHeight: 17 },
   metric: { flex: 1, backgroundColor: "#0C1220", borderRadius: 10, padding: 10, gap: 4 },
   metricValue: { color: "#F5F7FF", fontSize: 22, fontWeight: "800" },
   projectPicker: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
