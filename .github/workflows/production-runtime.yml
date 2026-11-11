@@ -124,7 +124,7 @@ jobs:
         run: |
           set -euo pipefail
           response="$(curl --fail-with-body --silent --show-error \
-            -H "authorization: Bearer $API_ACCESS_TOKEN" \
+            -H "authorization: Bearer $SESSION_ACCESS_TOKEN" \
             -H "content-type: application/json" \
             -d "{\"projectId\":\"$PROJECT_ID\",\"topic\":\"Runtime pipeline verification\",\"language\":\"de\",\"targetDurationSeconds\":10,\"targetPlatforms\":[\"youtube_shorts\"],\"idempotencyKey\":\"runtime-e2e-$(date +%s)\"}" \
             http://127.0.0.1:4000/v1/video-jobs)"
