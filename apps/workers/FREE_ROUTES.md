@@ -17,9 +17,9 @@ OpenRouter is accepted only with `openrouter/free` or a model ID ending in `:fre
 
 1. Local Piper when `PIPER_MODEL` points to an installed voice model (optional `PIPER_BIN`).
 2. A local OpenAI-compatible Kokoro server when `KOKORO_TTS_BASE_URL` and `KOKORO_TTS_VOICE` are set.
-3. TTS.ai anonymous free Piper endpoint (enabled by default; disable with `TTS_AI_ENABLED=false`; optional `TTS_AI_VOICE`, default `de_DE-thorsten-medium`).
+3. OpenRouter free TTS model when OPENROUTER_TTS_MODEL ends in :free and a voice is configured.\n4. TTS.ai anonymous free Piper endpoint (enabled by default; disable with `TTS_AI_ENABLED=false`; optional `TTS_AI_VOICE`, default `de_DE-thorsten-medium`).
 
-TTS.ai anonymous requests are limited to 500 characters per call and 5,000 characters/day per IP according to its current published documentation. Keep narration chunks within the per-request limit. Local Piper/Kokoro remain the no-cloud fallback. Provider/model availability and licensing must be checked before commercial publication.
+OpenRouter TTS is enabled only for model IDs ending in :free; paid TTS model IDs are ignored. TTS.ai anonymous requests are limited to 500 characters per call and 5,000 characters/day per IP according to its current published documentation. Keep narration chunks within the per-request limit. Local Piper/Kokoro remain the no-cloud fallback. Provider/model availability and licensing must be checked before commercial publication.
 
 ## Security
 
