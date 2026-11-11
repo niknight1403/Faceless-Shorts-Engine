@@ -40,6 +40,7 @@ const worker = new Worker("video-generation", async task => {
   const script = await scriptProvider.generate({ topic: job.topic, language: job.language, targetDurationSeconds: job.targetDurationSeconds });
   console.log("script planned for " + videoJobId + ": " + script.scenes.length + " scenes via " + scriptProvider.name);
   await connection.set("faceless:providers:llm", JSON.stringify(scriptProvider.routeStatus()), "EX", 300);
+  await connection.set("faceless:providers:hub", JSON.stringify(scriptProvider.hubStatus()), "EX", 300);
   await connection.set("faceless:providers:tts", JSON.stringify(ttsRouter.availableRoutes()), "EX", 300);
 
   await prisma.videoJob.update({ where: { id: videoJobId }, data: { status: JobStatus.GENERATING_VOICE, progress: 20 } });
@@ -79,6 +80,7 @@ console.log("faceless video-generation worker started");
 console.log("free LLM routes:", scriptProvider.routeStatus(), "free TTS routes:", ttsRouter.availableRoutes());
 void Promise.all([
   connection.set("faceless:providers:llm", JSON.stringify(scriptProvider.routeStatus()), "EX", 300),
+  connection.set("faceless:providers:hub", JSON.stringify(scriptProvider.hubStatus()), "EX", 300),
   connection.set("faceless:providers:tts", JSON.stringify(ttsRouter.availableRoutes()), "EX", 300)
 ]).catch(error => console.error("could not publish initial provider status", error));
 async function shutdown() {
