@@ -1,7 +1,7 @@
 export interface FreeLlmRoute { id: string; model: string; baseUrl: string; apiKey?: string; priority: number; free: true }
 export interface LlmRouteResult { provider: string; model: string; text: string; latencyMs: number }
-export interface RouteSnapshot { id: string; model: string; priority: number; available: boolean; failures: number; latencyMs: number | null; cooldownUntil: string | null; remainingRequests: number | null }
-type RouteState = { failures: number; latencyMs: number | null; cooldownUntil: number; remainingRequests: number | null };
+export interface RouteSnapshot { id: string; model: string; priority: number; available: boolean; failures: number; latencyMs: number | null; cooldownUntil: string | null; remainingRequests: number | null; remainingTokens: number | null }
+type RouteState = { failures: number; latencyMs: number | null; cooldownUntil: number; remainingRequests: number | null; remainingTokens: number | null };
 const env = (name: string) => process.env[name]?.trim() || undefined;
 const endpoint = (baseUrl: string) => baseUrl.replace(/\/+$/, "") + "/chat/completions";
 
@@ -36,13 +36,13 @@ export function buildFreeLlmRoutes(): FreeLlmRoute[] {
 export class FreeRouteHunter {
   private readonly state = new Map<string, RouteState>();
   constructor(private readonly routes: FreeLlmRoute[], private readonly timeoutMs = 20_000, private readonly cooldownMs = 60_000) {
-    for (const route of routes) this.state.set(route.id, { failures: 0, latencyMs: null, cooldownUntil: 0, remainingRequests: null });
+    for (const route of routes) this.state.set(route.id, { failures: 0, latencyMs: null, cooldownUntil: 0, remainingRequests: null, remainingTokens: null });
   }
   snapshot(): RouteSnapshot[] {
     const now = Date.now();
     return this.routes.map(route => {
       const state = this.state.get(route.id)!;
-      return { id: route.id, model: route.model, priority: route.priority, available: state.cooldownUntil <= now && state.remainingRequests !== 0, failures: state.failures, latencyMs: state.latencyMs, cooldownUntil: state.cooldownUntil ? new Date(state.cooldownUntil).toISOString() : null, remainingRequests: state.remainingRequests };
+      return { id: route.id, model: route.model, priority: route.priority, available: state.cooldownUntil <= now && state.remainingRequests !== 0, failures: state.failures, latencyMs: state.latencyMs, cooldownUntil: state.cooldownUntil ? new Date(state.cooldownUntil).toISOString() : null, remainingRequests: state.remainingRequests, remainingTokens: state.remainingTokens };
     });
   }
   async generate(prompt: string): Promise<LlmRouteResult> {
@@ -66,10 +66,14 @@ export class FreeRouteHunter {
         });
         const remaining = response.headers.get("x-ratelimit-remaining-requests");
         if (remaining !== null && Number.isFinite(Number(remaining))) state.remainingRequests = Number(remaining);
+        const remainingTokens = response.headers.get("x-ratelimit-remaining-tokens");
+        if (remainingTokens !== null && Number.isFinite(Number(remainingTokens))) state.remainingTokens = Number(remainingTokens);
         if (!response.ok) {
           if (response.status === 429 || response.status === 402 || response.status === 403 || response.status >= 500) {
-            state.failures += 1;
-            state.cooldownUntil = Date.now() + (response.status === 429 ? this.cooldownMs : 15_000);
+            const retryAfter = response.headers.get("retry-after");
+            const retrySeconds = retryAfter && Number.isFinite(Number(retryAfter)) ? Number(retryAfter) * 1000 : 0;
+            const retryDate = retryAfter && !retrySeconds ? Date.parse(retryAfter) - Date.now() : 0;
+            state.cooldownUntil = Date.now() + (response.status === 429 ? Math.max(this.cooldownMs, retrySeconds, retryDate) : 15_000);
           }
           throw new Error(route.id + "_http_" + response.status);
         }
