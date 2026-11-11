@@ -78,11 +78,11 @@ worker.on("completed", task => console.log("video job task completed: " + task.i
 worker.on("failed", (task, error) => console.error("video job task failed: " + task?.id, error));
 console.log("faceless video-generation worker started");
 console.log("free LLM routes:", scriptProvider.routeStatus(), "free TTS routes:", ttsRouter.availableRoutes());
-void Promise.all([
+void scriptProvider.refreshHub().then(() => Promise.all([
   connection.set("faceless:providers:llm", JSON.stringify(scriptProvider.routeStatus()), "EX", 300),
   connection.set("faceless:providers:hub", JSON.stringify(scriptProvider.hubStatus()), "EX", 300),
   connection.set("faceless:providers:tts", JSON.stringify(ttsRouter.availableRoutes()), "EX", 300)
-]).catch(error => console.error("could not publish initial provider status", error));
+])).catch(error => console.error("could not publish initial provider status", error));
 async function shutdown() {
   await worker.close(); await Promise.all([prisma.$disconnect(), connection.quit()]); process.exit(0);
 }
