@@ -130,10 +130,11 @@ const server = createServer(async (req, res) => {
       const session = await authenticate(req);
       if (!session) { json(res, 401, { error: "unauthorized" }); return; }
       const body = await readBody<{ organizationId?: string; name?: string; description?: string }>(req);
-      const organizationId = body.organizationId?.trim() ?? "";
-      const name = body.name?.trim() ?? "";
-      const description = body.description?.trim() ?? "";
-      if (!organizationId || name.length < 2 || name.length > 80 || description.length > 500) {
+      const organizationId = typeof body.organizationId === "string" ? body.organizationId.trim() : "";
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      const description = typeof body.description === "string" ? body.description.trim() : "";
+      if (!organizationId || name.length < 2 || name.length > 80 ||
+          (body.description !== undefined && typeof body.description !== "string") || description.length > 500) {
         json(res, 400, { error: "organizationId_and_valid_project_name_required" }); return;
       }
       const membership = session.user.memberships.find(m => m.organizationId === organizationId);
