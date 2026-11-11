@@ -20,6 +20,10 @@ async function readBody(req: import("node:http").IncomingMessage): Promise<Creat
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", "http://localhost");
+    if (req.method === "GET" && url.pathname === "/v1/providers") {
+      const [llm, tts] = await Promise.all([connection.get("faceless:providers:llm"), connection.get("faceless:providers:tts")]);
+      json(res, 200, { freeOnly: true, llm: llm ? JSON.parse(llm) : [], tts: tts ? JSON.parse(tts) : [] }); return;
+    }
     if (req.method === "GET" && url.pathname === "/health/live") { json(res, 200, { status: "ok", service: "faceless-api" }); return; }
     if (req.method === "GET" && url.pathname === "/v1/providers") {
       const [llm, tts] = await Promise.all([connection.get("faceless:providers:llm"), connection.get("faceless:providers:tts")]);
