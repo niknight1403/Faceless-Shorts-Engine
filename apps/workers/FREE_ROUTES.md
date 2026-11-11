@@ -1,11 +1,11 @@
 # Free Route Hunter
 
-The worker uses a free-only provider cascade: local Ollama first, then opt-in Cerebras Free Trial, Groq, Gemini API, Cloudflare Workers AI and OpenRouter Free. When `AGENTFORGE_HUB_URL` is set, it also reads `GET /api/free-routes` and `GET /api/free-routes/hunter` from the existing Agentforge2 hub every 60 seconds. Only enabled, explicitly free routes are imported; keyless Ollama/Pollinations routes are accepted directly, and keyed routes require the matching secret to be present in this worker environment. Providers without credentials are skipped. Additional OpenAI-compatible providers (for example Cohere or Novita, when their account actually has a no-cost quota) can be added with `FREE_LLM_CUSTOM_ROUTES`; each entry must explicitly set `free: true`.
+The worker uses a free-only provider cascade: local Ollama first, then opt-in Cerebras Free Trial, Groq, Gemini API, Cloudflare Workers AI and OpenRouter Free. When `AGENTFORGE_HUB_URL` is set, it reads `GET /api/free-routes`, `GET /api/routes` and `GET /api/free-routes/hunter` from the existing Agentforge2 hub every 60 seconds. Only enabled free route IDs are considered; keyless routes are imported directly, and keyed routes require the matching secret to be present in this worker environment. The hub's `/api/nexussphere/complete` cascade is added only when `AGENTFORGE_HUB_FREE_ONLY_CONFIRMED=true`, which must only be set after Agentforge2 is configured with `VF_LLM_FREE_ONLY=1`. Providers without credentials are skipped. Additional OpenAI-compatible providers (for example Cohere or Novita, when their account actually has a no-cost quota) can be added with `FREE_LLM_CUSTOM_ROUTES`; each entry must explicitly set `free: true`.
 
 OpenRouter is accepted only with `openrouter/free` or a model ID ending in `:free`. Never set a paid model ID. Cloud quotas are finite and account-specific; the router records latency, failures, 429 cooldowns and remaining-request headers when supplied. It does not purchase credits or retry through paid routes. The API exposes the last known route snapshot and upstream hub status at `GET /v1/providers`.
 
 - `AGENTFORGE_HUB_URL` (HTTPS URL of the Agentforge2 server)
-- `AGENTFORGE_HUB_TOKEN` (optional bearer token if the hub endpoint requires authentication)
+- `AGENTFORGE_HUB_TOKEN` (optional bearer token if the hub endpoint requires authentication)\n- `AGENTFORGE_HUB_FREE_ONLY_CONFIRMED=true` (explicit confirmation that Agentforge2 itself enforces free-only routing)
 
 ## LLM environment
 
