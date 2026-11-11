@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { createSessionToken, hashSessionToken, SESSION_TTL_MS, verifyPassword } from "./auth.js";
 import { createReadStream } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
@@ -47,16 +47,12 @@ async function readBody<T = CreateJobBody>(req: import("node:http").IncomingMess
   return JSON.parse(raw || "{}") as T;
 }
 type AuthenticatedSession = { id: string; userId: string; expiresAt: Date; user: { id: string; email: string; name: string | null; memberships: Array<{ organizationId: string; role: string; organization: { id: string; name: string; slug: string } }> } };
-const loginFailures = new Map<string, { count: number; resetAt: number }>();
 async function authenticate(req: import("node:http").IncomingMessage): Promise<AuthenticatedSession | null> {
   const token = req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7) : "";
   if (!/^[A-Za-z0-9_-]{40,60}$/.test(token)) return null;
   const session = await prisma.session.findUnique({ where: { tokenHash: hashSessionToken(token) }, include: { user: { include: { memberships: { include: { organization: true } } } } } });
   if (!session || session.revokedAt || session.expiresAt <= new Date()) return null;
   return session as AuthenticatedSession;
-}
-function clientKey(req: import("node:http").IncomingMessage, email: string): string {
-  return (req.socket.remoteAddress ?? "unknown") + ":" + email;
 }
 const server = createServer(async (req, res) => {
   try {
@@ -66,16 +62,18 @@ const server = createServer(async (req, res) => {
       const email = body.email?.trim().toLowerCase() ?? "";
       const password = body.password ?? "";
       if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || !password || password.length > 1024) { json(res, 400, { error: "email_and_password_required" }); return; }
-      const key = clientKey(req, email), now = Date.now(), failure = loginFailures.get(key);
-      if (failure && failure.resetAt > now && failure.count >= 10) { json(res, 429, { error: "too_many_login_attempts" }); return; }
+      const now = Date.now();
+      const throttleKey = "faceless:auth:login:" + createHash("sha256").update((req.socket.remoteAddress ?? "unknown") + ":" + email).digest("hex");
+      const attempts = await connection.get(throttleKey);
+      if (Number(attempts ?? 0) >= 10) { json(res, 429, { error: "too_many_login_attempts" }); return; }
       const user = await prisma.user.findUnique({ where: { email }, include: { memberships: { include: { organization: true } } } });
       const valid = await verifyPassword(password, user?.passwordHash ?? null);
       if (!user || !valid) {
-        const current = failure && failure.resetAt > now ? failure : { count: 0, resetAt: now + 15 * 60 * 1000 };
-        current.count++; loginFailures.set(key, current);
+        const count = await connection.incr(throttleKey);
+        if (count === 1) await connection.expire(throttleKey, 15 * 60);
         json(res, 401, { error: "invalid_credentials" }); return;
       }
-      loginFailures.delete(key);
+      await connection.del(throttleKey);
       const token = createSessionToken(), expiresAt = new Date(now + SESSION_TTL_MS);
       await prisma.session.create({ data: { userId: user.id, tokenHash: hashSessionToken(token), expiresAt } });
       json(res, 200, { accessToken: token, tokenType: "Bearer", expiresAt: expiresAt.toISOString(), user: { id: user.id, email: user.email, name: user.name }, organizations: user.memberships.map(m => ({ id: m.organization.id, name: m.organization.name, slug: m.organization.slug, role: m.role })) }); return;
