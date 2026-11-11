@@ -142,7 +142,9 @@ export default function App() {
   }, [loadDashboard]);
 
   const saveApi = async () => {
-    const next = normalizeApiUrl(apiDraft);
+    let next = "";
+    try { next = normalizeApiUrl(apiDraft); }
+    catch (e) { setError(e instanceof Error ? e.message : "Backend-Adresse ist ungültig."); return; }
     if (!next) { setError("Bitte eine Backend-Adresse eingeben, zum Beispiel https://api.deine-domain.de"); return; }
     API_URL = next;
     setApiDraft(next);
