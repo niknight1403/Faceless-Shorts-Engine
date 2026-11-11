@@ -17,6 +17,6 @@
 
 ## Bootstrap
 
-Set `BOOTSTRAP_ADMIN_EMAIL` and a NEW password in the deployment's secret manager, configure `DATABASE_URL`, then run `pnpm admin:bootstrap` once. Do not pass secrets as command-line arguments or commit them. The earlier password shared in chat must not be reused; rotate it and use a new unique password. The bootstrap operation changes the password hash and grants ADMIN in the selected organization.
+Set `BOOTSTRAP_ADMIN_EMAIL` and a NEW password in the deployment's secret manager, configure `DATABASE_URL`, then run `pnpm admin:bootstrap` once. Do not pass secrets as command-line arguments or commit them. The earlier password shared in chat must not be reused; rotate it and use a new unique password. The bootstrap operation creates the identity and grants ADMIN in the selected organization. It refuses to overwrite an existing password by default; set `BOOTSTRAP_ADMIN_FORCE_RESET=true` only for an intentional password rotation.
 
 Apply the migration with `pnpm exec prisma migrate deploy` before starting the API. The bootstrap script provisions the identity and membership; it does not create a hosted environment, set GitHub Actions secrets, or deploy the API. API access is only active after applying Prisma migrations and deploying the API with database connectivity.
