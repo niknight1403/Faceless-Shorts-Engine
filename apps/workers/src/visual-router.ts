@@ -37,10 +37,4 @@ export class VisualRouter {
     throw new Error("no_visual_route_available:" + (errors.join("|") || "no_routes_configured"));
   }
 }
-
-export async function persistVisual(result: VisualResult, directory: string, index: number): Promise<{ fileName: string; storageKey: string }> {
-  await mkdir(directory, { recursive: true });
-  const fileName = String(index + 1).padStart(3, "0") + "." + result.extension;
-  await writeFile(join(directory, fileName), result.image);
-  return { fileName, storageKey: fileName };
-}
+\n
