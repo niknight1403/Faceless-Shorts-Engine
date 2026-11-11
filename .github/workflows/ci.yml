@@ -15,6 +15,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Install FFmpeg runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm db:validate
       - run: pnpm db:generate
