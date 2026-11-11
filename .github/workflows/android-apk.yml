@@ -14,6 +14,7 @@ permissions:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -26,6 +27,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
       - name: Generate native Android project
@@ -34,7 +36,7 @@ jobs:
         working-directory: apps/mobile/android
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon assembleDebug
+          ./gradlew --no-daemon --console=plain --stacktrace --max-workers=2 assembleDebug
       - name: Package APK as ZIP
         run: |
           mkdir -p dist
