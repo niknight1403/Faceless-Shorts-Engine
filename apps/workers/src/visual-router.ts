@@ -36,7 +36,7 @@ export class PollinationsVisualProvider implements VisualProvider {
       input.prompt,
       "cinematic editorial illustration, high detail, no text, vertical composition",
     ].join(", ");
-    const endpoint = process.env.VISUALS_BASE_URL?.trim().replace(/\\/+$/, "") ||
+    const endpoint = process.env.VISUALS_BASE_URL?.trim().replace(/\/+$/, "") ||
       "https://image.pollinations.ai/prompt";
     const url =
       endpoint +
