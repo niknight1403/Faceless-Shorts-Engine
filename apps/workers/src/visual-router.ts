@@ -23,6 +23,15 @@ export class PollinationsVisualProvider implements VisualProvider {
   constructor(private readonly request: typeof fetch = fetch) {}
 
   async generate(input: VisualRequest): Promise<VisualResult> {
+    const width = input.width ?? 720;
+    const height = input.height ?? 1280;
+    if (typeof input.prompt !== "string" || !input.prompt.trim() || input.prompt.length > 2_000) {
+      throw new Error("visual_prompt_must_be_1_to_2000_characters");
+    }
+    if (!Number.isInteger(width) || width < 256 || width > 2048 ||
+        !Number.isInteger(height) || height < 256 || height > 2048) {
+      throw new Error("visual_dimensions_must_be_integers_between_256_and_2048");
+    }
     const prompt = [
       input.prompt,
       "cinematic editorial illustration, high detail, no text, vertical composition",
@@ -31,9 +40,9 @@ export class PollinationsVisualProvider implements VisualProvider {
       "https://image.pollinations.ai/prompt/" +
       encodeURIComponent(prompt) +
       "?width=" +
-      (input.width ?? 720) +
+      width +
       "&height=" +
-      (input.height ?? 1280) +
+      height +
       "&nologo=true&safe=true";
     const response = await this.request(url, {
       signal: AbortSignal.timeout(120_000),
