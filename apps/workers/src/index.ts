@@ -2,7 +2,7 @@ import { PrismaClient, JobStatus, AssetKind } from "@prisma/client";
 import { Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { FreeRoutedScriptProvider } from "./routed-script-generator.js";
 import { TtsRouter } from "./tts-router.js";
 import { VisualRouter } from "./visual-router.js";
