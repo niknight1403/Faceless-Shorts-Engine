@@ -39,6 +39,8 @@ const worker = new Worker("video-generation", async task => {
   await prisma.videoJob.update({ where: { id: videoJobId }, data: { status: JobStatus.GENERATING_SCRIPT, progress: 10, errorCode: null, errorMessage: null } });
   const script = await scriptProvider.generate({ topic: job.topic, language: job.language, targetDurationSeconds: job.targetDurationSeconds });
   console.log("script planned for " + videoJobId + ": " + script.scenes.length + " scenes via " + scriptProvider.name);
+  await connection.set("faceless:providers:llm", JSON.stringify(scriptProvider.routeStatus()), "EX", 300);
+  await connection.set("faceless:providers:tts", JSON.stringify(ttsRouter.availableRoutes()), "EX", 300);
 
   await prisma.videoJob.update({ where: { id: videoJobId }, data: { status: JobStatus.GENERATING_VOICE, progress: 20 } });
   const narration = script.scenes.map(scene => scene.narration).join(" ");
