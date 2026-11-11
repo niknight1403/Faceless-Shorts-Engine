@@ -87,7 +87,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && jobMatch) {
       const job = await prisma.videoJob.findUnique({ where: { id: jobMatch[1] }, include: { assets: true } });
       if (!job) { json(res, 404, { error: "video_job_not_found" }); return; }
-      json(res, 200, { ...job, assets: job.assets.map(asset => { const { storageKey, ...publicAsset } = asset; return { ...publicAsset, sizeBytes: asset.sizeBytes?.toString() ?? null, downloadUrl: assetDownloadUrl(asset) }; }) }); return;
+      json(res, 200, { ...job, assets: job.assets.map(asset => { const { storageKey, ...publicAsset } = asset; void storageKey; return { ...publicAsset, sizeBytes: asset.sizeBytes?.toString() ?? null, downloadUrl: assetDownloadUrl(asset) }; }) }); return;
     }
     const assetMatch = url.pathname.match(/^\/v1\/assets\/([a-zA-Z0-9_-]+)$/);
     if (req.method === "GET" && assetMatch) {
