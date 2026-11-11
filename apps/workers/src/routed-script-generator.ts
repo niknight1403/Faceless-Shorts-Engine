@@ -8,6 +8,7 @@ export class FreeRoutedScriptProvider implements ScriptProvider {
   constructor(hunter = new FreeRouteHunter(buildFreeLlmRoutes())) { this.hunter = hunter; }
   routeStatus() { return this.hunter.snapshot(); }
   hubStatus() { return this.hunter.hubStatus(); }
+  async refreshHub() { await this.hunter.refreshFromAgentforgeHub(fetch, true); }
   async generate(input: ScriptRequest): Promise<GeneratedScript> {
     await this.hunter.refreshFromAgentforgeHub();
     if (this.hunter.snapshot().length === 0) return this.local.generate(input);
