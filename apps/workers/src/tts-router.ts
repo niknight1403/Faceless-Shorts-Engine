@@ -1,3 +1,4 @@
+import { readBoundedResponse } from "./http-response.js";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -37,7 +38,7 @@ function createRoutes(): TtsRoute[] {
       signal: AbortSignal.timeout(90_000)
     });
     if (!response.ok) throw new Error("kokoro_http_" + response.status);
-    return { provider: "kokoro-local", mimeType: response.headers.get("content-type") ?? "audio/wav", extension: "wav", audio: Buffer.from(await response.arrayBuffer()) };
+    return { provider: "kokoro-local", mimeType: response.headers.get("content-type") ?? "audio/wav", extension: "wav", audio: await readBoundedResponse(response, 26214400, "audio_payload") };
   }});
   const openRouterKey = env("OPENROUTER_API_KEY"), openRouterTtsModel = env("OPENROUTER_TTS_MODEL");
   if (openRouterKey && openRouterTtsModel?.endsWith(":free") && env("OPENROUTER_TTS_VOICE")) routes.push({ id: "openrouter-free-tts", async synthesize(text) {
