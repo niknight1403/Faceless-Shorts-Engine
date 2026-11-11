@@ -59,7 +59,7 @@ jobs:
           curl --fail --show-error --retry 10 --retry-delay 2 http://127.0.0.1:4000/health/ready
       - name: Verify provider status endpoint
         run: |
-          curl --fail --show-error http://127.0.0.1:4000/v1/providers | node -e '
+          curl --fail --show-error --retry 10 --retry-delay 2 http://127.0.0.1:4000/v1/providers | node -e '
             let input = "";
             process.stdin.on("data", chunk => input += chunk);
             process.stdin.on("end", () => {
