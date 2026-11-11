@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateProductionEnv } from "./production-preflight.js";
+import { parseProductionEnv, validateProductionEnv } from "./production-preflight.js";
 
 const base = {
   POSTGRES_USER: "shorts",
@@ -36,7 +36,7 @@ test("production preflight blocks a deployment without a TTS route", () => {
 
 test("production preflight requires HTTPS for the mobile production URL", () => {
   const result = validateProductionEnv({ ...base, EXPO_PUBLIC_API_URL: "http://api.example.com" });
-  assert.ok(result.errors.includes("EXPO_PUBLIC_API_URL_must_use_https"));
+  assert.ok(result.errors.includes("EXPO_PUBLIC_API_URL_must_be_a_valid_https_url"));
 });
 
 test("anonymous TTS opt-in emits an external processing warning", () => {
@@ -51,7 +51,10 @@ test("production preflight blocks a missing public API URL", () => {
 });
 
 test("production preflight strips trailing unquoted env comments", () => {
-  const result = validateProductionEnv({ ...base, TTS_AI_ENABLED: "false # local-only TTS required" });
+  const parsed = parseProductionEnv("TTS_AI_ENABLED=false # local-only TTS required\\nEXPO_PUBLIC_API_URL=https://api.example.net # public endpoint");
+  const result = validateProductionEnv({ ...base, ...parsed });
+  assert.equal(parsed.TTS_AI_ENABLED, "false");
+  assert.equal(parsed.EXPO_PUBLIC_API_URL, "https://api.example.net");
   assert.ok(!result.enabledRoutes.includes("tts-ai-free"));
   assert.ok(!result.warnings.some(w => w.includes("external_provider")));
 });
