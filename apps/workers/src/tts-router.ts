@@ -77,6 +77,11 @@ export class TtsRouter {
       try {
         const result = await route.synthesize(text, language);
         if (!result.audio.length) throw new Error("empty_audio");
+        if (result.audio.byteLength > 25 * 1024 * 1024) throw new Error("audio_payload_too_large");
+        if (!/^audio\/[a-z0-9.+-]+$/i.test(result.mimeType.split(";")[0]!.trim())) {
+          throw new Error("unsupported_audio_content_type:" + result.mimeType.slice(0, 100));
+        }
+        if (!/^[a-z0-9]{2,5}$/i.test(result.extension)) throw new Error("invalid_audio_extension");
         return result;
       } catch (error) { errors.push(route.id + ":" + (error instanceof Error ? error.message : "failed")); }
     }
