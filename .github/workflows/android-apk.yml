@@ -1,0 +1,50 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/bootstrap-foundation"]
+    paths:
+      - "apps/mobile/**"
+      - "eas.json"
+      - ".github/workflows/android-apk.yml"
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Verify Expo project link
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          test -n "$EXPO_TOKEN" || { echo "::error::Add EXPO_TOKEN in repository Actions secrets."; exit 1; }
+          pnpm dlx eas-cli@latest project:info --non-interactive
+      - name: Build Android APK
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: pnpm dlx eas-cli@latest build --platform android --profile preview --non-interactive --wait
+      - name: Download APK and create ZIP
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          mkdir -p dist
+          pnpm dlx eas-cli@latest build:download --platform android --latest --output dist/Faceless-Shorts.apk
+          test -s dist/Faceless-Shorts.apk
+          cd dist
+          zip -9 Faceless-Shorts-Android-APK.zip Faceless-Shorts.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Faceless-Shorts-Android-APK
+          path: dist/Faceless-Shorts-Android-APK.zip
+          if-no-files-found: error
+          retention-days: 30
