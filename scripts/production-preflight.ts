@@ -16,6 +16,15 @@ export function validateProductionEnv(env: Record<string, string | undefined>): 
   const configured = requiredSecrets.map(name => env[name]?.trim()).filter(Boolean);
   if (new Set(configured).size !== configured.length) errors.push("production_secrets_must_be_unique");
   if (!env.DATABASE_URL?.startsWith("postgresql://")) errors.push("DATABASE_URL_must_use_postgresql");
+  else {
+    try {
+      const database = new URL(env.DATABASE_URL);
+      if (decodeURIComponent(database.username) !== (env.POSTGRES_USER ?? "shorts")) errors.push("DATABASE_URL_user_must_match_POSTGRES_USER");
+      if (decodeURIComponent(database.password) !== (env.POSTGRES_PASSWORD ?? "")) errors.push("DATABASE_URL_password_must_match_POSTGRES_PASSWORD");
+      if (database.pathname.slice(1) !== (env.POSTGRES_DB ?? "shorts_engine")) errors.push("DATABASE_URL_database_must_match_POSTGRES_DB");
+    } catch { errors.push("DATABASE_URL_invalid"); }
+  }
+  if (env.BOOTSTRAP_ADMIN_PASSWORD && env.BOOTSTRAP_ADMIN_PASSWORD.length < 14) errors.push("BOOTSTRAP_ADMIN_PASSWORD_must_be_at_least_14_characters");
   if (!env.REDIS_URL?.startsWith("redis://") && !env.REDIS_URL?.startsWith("rediss://")) errors.push("REDIS_URL_must_use_redis");
   if (!env.MEDIA_STORAGE_DIR || !env.MEDIA_STORAGE_DIR.startsWith("/")) errors.push("MEDIA_STORAGE_DIR_must_be_absolute");
   if (!env.EXPO_PUBLIC_API_URL || env.EXPO_PUBLIC_API_URL.includes("example.com")) errors.push("EXPO_PUBLIC_API_URL_missing_or_placeholder");
