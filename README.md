@@ -9,6 +9,10 @@ The GitHub Actions workflow **Android APK** creates a standalone Android release
 - The artifact contains both `Faceless-Shorts.apk` and `Faceless-Shorts-Android-APK.zip`.
 - The current release-variant artifact is signed with the generated debug key for direct device testing. It embeds the JavaScript bundle and does not require Metro. A Play Store release still requires a managed production signing key, release configuration, and store checks.
 
+### Mobile backend configuration
+
+Before building a usable phone app, add the repository Actions variable `EXPO_PUBLIC_API_URL` with the public HTTPS origin of the deployed API (for example `https://api.example.com`, without a trailing slash). The Android workflow injects this value at build time. If it is missing, the app now displays a clear configuration error and does not silently call `localhost` on the phone. This repository does not currently contain a deployed production API URL; a reachable API, PostgreSQL, Redis, worker, and shared media storage must be provisioned before end-to-end video generation can work.
+
 ## Initial administrator
 
 Create or promote an organization administrator with a one-time bootstrap command:
