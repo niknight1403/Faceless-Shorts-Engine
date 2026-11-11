@@ -17,6 +17,7 @@ jobs:
           node-version: 20
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm db:validate
+      - run: pnpm db:generate
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
