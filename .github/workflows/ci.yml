@@ -7,6 +7,8 @@ on:
 jobs:
   foundation:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://shorts:shorts@localhost:5432/shorts_engine?schema=public
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
