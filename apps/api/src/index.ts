@@ -114,14 +114,15 @@ const server = createServer(async (req, res) => {
         include: { jobs: { orderBy: { createdAt: "desc" }, take: 12, select: {
           id: true, topic: true, language: true, status: true, progress: true,
           errorCode: true, errorMessage: true, createdAt: true, updatedAt: true,
-          assets: { select: { id: true, kind: true, mimeType: true, sizeBytes: true } }
+          assets: { select: { id: true, kind: true, mimeType: true, sizeBytes: true, storageKey: true } }
         } } }
       }) : [];
       json(res, 200, { projects: projects.map(project => ({
         id: project.id, name: project.name, description: project.description,
         organizationId: project.organizationId, createdAt: project.createdAt,
         jobs: project.jobs.map(job => ({ ...job, assets: job.assets.map(asset => ({
-          ...asset, sizeBytes: asset.sizeBytes?.toString() ?? null
+          id: asset.id, kind: asset.kind, mimeType: asset.mimeType,
+          sizeBytes: asset.sizeBytes?.toString() ?? null, downloadUrl: assetDownloadUrl(asset)
         })) }))
       })) }); return;
     }
