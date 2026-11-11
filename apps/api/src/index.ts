@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { createSessionToken, hashSessionToken, SESSION_TTL_MS, verifyPassword } from "./auth.js";
 import { createReadStream } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -40,14 +41,71 @@ function assetDownloadUrl(asset: AssetRecord): string | null {
   const signature = assetSignature(asset.id, expires);
   return "/v1/assets/" + encodeURIComponent(asset.id) + "?expires=" + expires + "&signature=" + signature;
 }
-async function readBody(req: import("node:http").IncomingMessage): Promise<CreateJobBody> {
+async function readBody<T = CreateJobBody>(req: import("node:http").IncomingMessage): Promise<T> {
   let raw = "";
   for await (const chunk of req) { raw += chunk.toString(); if (raw.length > 16_384) throw new Error("body_too_large"); }
-  return JSON.parse(raw || "{}") as CreateJobBody;
+  return JSON.parse(raw || "{}") as T;
+}
+type AuthenticatedSession = { id: string; userId: string; expiresAt: Date; user: { id: string; email: string; name: string | null; memberships: Array<{ organizationId: string; role: string; organization: { id: string; name: string; slug: string } }> } };
+const loginFailures = new Map<string, { count: number; resetAt: number }>();
+async function authenticate(req: import("node:http").IncomingMessage): Promise<AuthenticatedSession | null> {
+  const token = req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7) : "";
+  if (!/^[A-Za-z0-9_-]{40,60}$/.test(token)) return null;
+  const session = await prisma.session.findUnique({ where: { tokenHash: hashSessionToken(token) }, include: { user: { include: { memberships: { include: { organization: true } } } } } });
+  if (!session || session.revokedAt || session.expiresAt <= new Date()) return null;
+  return session as AuthenticatedSession;
+}
+function clientKey(req: import("node:http").IncomingMessage, email: string): string {
+  return (req.socket.remoteAddress ?? "unknown") + ":" + email;
 }
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", "http://localhost");
+    if (req.method === "POST" && url.pathname === "/v1/auth/login") {
+      const body = await readBody<{ email?: string; password?: string }>(req);
+      const email = body.email?.trim().toLowerCase() ?? "";
+      const password = body.password ?? "";
+      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || !password || password.length > 1024) { json(res, 400, { error: "email_and_password_required" }); return; }
+      const key = clientKey(req, email), now = Date.now(), failure = loginFailures.get(key);
+      if (failure && failure.resetAt > now && failure.count >= 10) { json(res, 429, { error: "too_many_login_attempts" }); return; }
+      const user = await prisma.user.findUnique({ where: { email }, include: { memberships: { include: { organization: true } } } });
+      const valid = await verifyPassword(password, user?.passwordHash ?? null);
+      if (!user || !valid) {
+        const current = failure && failure.resetAt > now ? failure : { count: 0, resetAt: now + 15 * 60 * 1000 };
+        current.count++; loginFailures.set(key, current);
+        json(res, 401, { error: "invalid_credentials" }); return;
+      }
+      loginFailures.delete(key);
+      const token = createSessionToken(), expiresAt = new Date(now + SESSION_TTL_MS);
+      await prisma.session.create({ data: { userId: user.id, tokenHash: hashSessionToken(token), expiresAt } });
+      json(res, 200, { accessToken: token, tokenType: "Bearer", expiresAt: expiresAt.toISOString(), user: { id: user.id, email: user.email, name: user.name }, organizations: user.memberships.map(m => ({ id: m.organization.id, name: m.organization.name, slug: m.organization.slug, role: m.role })) }); return;
+    }
+    if (req.method === "GET" && url.pathname === "/v1/auth/me") {
+      const session = await authenticate(req);
+      if (!session) { json(res, 401, { error: "unauthorized" }); return; }
+      json(res, 200, { user: { id: session.user.id, email: session.user.email, name: session.user.name }, organizations: session.user.memberships.map(m => ({ id: m.organization.id, name: m.organization.name, slug: m.organization.slug, role: m.role })), expiresAt: session.expiresAt.toISOString() }); return;
+    }
+    if (req.method === "POST" && url.pathname === "/v1/auth/logout") {
+      const session = await authenticate(req);
+      if (!session) { json(res, 401, { error: "unauthorized" }); return; }
+      await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
+      json(res, 200, { status: "signed_out" }); return;
+    }
+    if (req.method === "GET" && url.pathname === "/v1/admin/overview") {
+      const session = await authenticate(req);
+      if (!session) { json(res, 401, { error: "unauthorized" }); return; }
+      const organizationId = req.headers["x-organization-id"];
+      if (typeof organizationId !== "string" || !organizationId) { json(res, 400, { error: "x-organization-id_required" }); return; }
+      const membership = session.user.memberships.find(m => m.organizationId === organizationId);
+      if (!membership || !["OWNER", "ADMIN"].includes(membership.role)) { json(res, 403, { error: "admin_role_required" }); return; }
+      const [projectCount, jobCount, completedCount, failedCount] = await Promise.all([
+        prisma.project.count({ where: { organizationId } }),
+        prisma.videoJob.count({ where: { project: { organizationId } } }),
+        prisma.videoJob.count({ where: { project: { organizationId }, status: JobStatus.COMPLETED } }),
+        prisma.videoJob.count({ where: { project: { organizationId }, status: JobStatus.FAILED } })
+      ]);
+      json(res, 200, { organizationId, role: membership.role, counts: { projects: projectCount, jobs: jobCount, completedJobs: completedCount, failedJobs: failedCount } }); return;
+    }
     if (req.method === "GET" && url.pathname === "/v1/providers") {
       const [llm, tts, hub, visuals] = await Promise.all([connection.get("faceless:providers:llm"), connection.get("faceless:providers:tts"), connection.get("faceless:providers:hub"), connection.get("faceless:providers:visuals")]);
       json(res, 200, { freeOnly: true, llm: llm ? JSON.parse(llm) : [], tts: tts ? JSON.parse(tts) : [], visuals: visuals ? JSON.parse(visuals) : [], agentforgeHub: hub ? JSON.parse(hub) : null }); return;
