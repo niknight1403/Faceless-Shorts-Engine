@@ -46,7 +46,7 @@ export function validateProductionEnv(env: Record<string, string | undefined>): 
   return { errors, warnings, enabledRoutes };
 }
 
-function parseEnv(source: string): Record<string, string> {
+export function parseProductionEnv(source: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const line of source.split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -66,7 +66,7 @@ async function main() {
   let source: string;
   try { source = await readFile(file, "utf8"); }
   catch { console.error("production_preflight_failed: cannot_read_" + file); process.exitCode = 1; return; }
-  const result = validateProductionEnv(parseEnv(source));
+  const result = validateProductionEnv(parseProductionEnv(source));
   console.log(JSON.stringify({ file, status: result.errors.length ? "blocked" : "ready_for_manual_review", enabledRoutes: result.enabledRoutes, warnings: result.warnings, errors: result.errors }, null, 2));
   if (result.errors.length) process.exitCode = 1;
 }
