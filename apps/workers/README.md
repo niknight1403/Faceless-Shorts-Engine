@@ -13,4 +13,4 @@ The worker now executes script generation → per-scene TTS → per-scene visual
 - Visuals use the anonymous Pollinations image endpoint (`image.pollinations.ai`) and require outbound HTTPS access. It is a best-effort free route with external rate limits and availability; no API key is required.
 - TTS still requires at least one configured route. `TTS_AI_ENABLED=true` enables the anonymous TTS.ai fallback; its upstream service may rate-limit or change availability.
 
-The SRT file is stored as a separate caption asset; it is not burned into the video. The video itself is a 720×1280, 30 FPS H.264/AAC MP4.
+Captions are burned into each scene during rendering and the complete SRT file is also stored as a separate caption asset. The worker requires an FFmpeg build with the `subtitles` filter (libass), in addition to `libx264` and AAC. The video itself is a 720×1280, 30 FPS H.264/AAC MP4.
