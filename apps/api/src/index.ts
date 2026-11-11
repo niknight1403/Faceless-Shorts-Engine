@@ -199,11 +199,25 @@ const server = createServer(async (req, res) => {
           json(res, 200, existing); return;
         }
       }
-      const job = await prisma.videoJob.create({ data: {
-        projectId: body.projectId, topic: body.topic.trim(), language,
-        targetDurationSeconds: duration, targetPlatforms: platforms, status: JobStatus.QUEUED,
-        idempotencyKey: body.idempotencyKey
-      }});
+      let job: Awaited<ReturnType<typeof prisma.videoJob.create>>;
+      try {
+        job = await prisma.videoJob.create({ data: {
+          projectId: body.projectId, topic: body.topic.trim(), language,
+          targetDurationSeconds: duration, targetPlatforms: platforms, status: JobStatus.QUEUED,
+          idempotencyKey: body.idempotencyKey
+        }});
+      } catch (error) {
+        // Concurrent requests can both pass the initial lookup. Resolve the
+        // unique-key race as an idempotent replay instead of returning 500.
+        if (body.idempotencyKey && typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+          const existing = await prisma.videoJob.findUnique({ where: { idempotencyKey: body.idempotencyKey } });
+          if (existing) {
+            if (existing.projectId !== project.id) { json(res, 409, { error: "idempotency_key_conflict" }); return; }
+            json(res, 200, existing); return;
+          }
+        }
+        throw error;
+      }
       try {
         await queue.add("generate-video", { videoJobId: job.id }, { jobId: job.id, attempts: 3, backoff: { type: "exponential", delay: 5000 }, removeOnComplete: 500, removeOnFail: 1000 });
       } catch (error) {
