@@ -10,14 +10,16 @@ export function buildFreeLlmRoutes(): FreeLlmRoute[] {
   const routes: FreeLlmRoute[] = [];
   const ollamaModel = env("OLLAMA_MODEL");
   if (ollamaModel) routes.push({ id: "ollama-local", model: ollamaModel, baseUrl: env("OLLAMA_BASE_URL") ?? "http://127.0.0.1:11434/v1", priority: 1, free: true });
+  const cerebrasKey = env("CEREBRAS_API_KEY");
+  if (cerebrasKey && env("CEREBRAS_FREE_TRIAL_ENABLED") === "true") routes.push({ id: "cerebras-free-trial", model: env("CEREBRAS_MODEL") ?? "gpt-oss-120b", baseUrl: "https://api.cerebras.ai/v1", apiKey: cerebrasKey, priority: 2, free: true });
   const groqKey = env("GROQ_API_KEY");
-  if (groqKey) routes.push({ id: "groq-free-tier", model: env("GROQ_MODEL") ?? "openai/gpt-oss-20b", baseUrl: "https://api.groq.com/openai/v1", apiKey: groqKey, priority: 2, free: true });
+  if (groqKey) routes.push({ id: "groq-free-tier", model: env("GROQ_MODEL") ?? "openai/gpt-oss-20b", baseUrl: "https://api.groq.com/openai/v1", apiKey: groqKey, priority: 3, free: true });
   const geminiKey = env("GEMINI_API_KEY");
-  if (geminiKey) routes.push({ id: "gemini-free-tier", model: env("GEMINI_MODEL") ?? "gemini-2.5-flash", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", apiKey: geminiKey, priority: 3, free: true });
+  if (geminiKey) routes.push({ id: "gemini-free-tier", model: env("GEMINI_MODEL") ?? "gemini-2.5-flash", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", apiKey: geminiKey, priority: 4, free: true });
   const account = env("CLOUDFLARE_ACCOUNT_ID"), token = env("CLOUDFLARE_API_TOKEN");
-  if (account && token) routes.push({ id: "cloudflare-workers-ai-free", model: env("CLOUDFLARE_AI_MODEL") ?? "@cf/meta/llama-3.3-70b-instruct-fp8-fast", baseUrl: "https://api.cloudflare.com/client/v4/accounts/" + account + "/ai/v1", apiKey: token, priority: 4, free: true });
+  if (account && token) routes.push({ id: "cloudflare-workers-ai-free", model: env("CLOUDFLARE_AI_MODEL") ?? "@cf/meta/llama-3.3-70b-instruct-fp8-fast", baseUrl: "https://api.cloudflare.com/client/v4/accounts/" + account + "/ai/v1", apiKey: token, priority: 5, free: true });
   const openRouterKey = env("OPENROUTER_API_KEY"), openRouterModel = env("OPENROUTER_MODEL") ?? "openrouter/free";
-  if (openRouterKey && (openRouterModel === "openrouter/free" || openRouterModel.endsWith(":free"))) routes.push({ id: "openrouter-free", model: openRouterModel, baseUrl: "https://openrouter.ai/api/v1", apiKey: openRouterKey, priority: 5, free: true });
+  if (openRouterKey && (openRouterModel === "openrouter/free" || openRouterModel.endsWith(":free"))) routes.push({ id: "openrouter-free", model: openRouterModel, baseUrl: "https://openrouter.ai/api/v1", apiKey: openRouterKey, priority: 6, free: true });
   const custom = env("FREE_LLM_CUSTOM_ROUTES");
   if (custom) {
     try {
