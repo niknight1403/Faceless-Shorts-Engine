@@ -6,7 +6,7 @@
 - `GET /v1/auth/me` returns the authenticated user and organization memberships.
 - `POST /v1/auth/logout` revokes the current session.
 - Sessions expire after 12 hours. Only a SHA-256 hash of each opaque token is stored in PostgreSQL. Passwords use the scrypt format created by `pnpm admin:bootstrap`; password verification uses constant-time comparison.
-- Login failures return a generic error. A process-local throttle limits repeated failures; deploy behind a trusted proxy and add a shared Redis-backed rate limiter before running multiple API replicas.
+- Login failures return a generic error. A shared Redis-backed throttle allows at most 10 failed attempts per 15-minute window for each source-IP/email pair and clears the counter after a successful login. Keep Redis private to the application network; also enforce request-size limits and edge rate limits at the trusted reverse proxy.
 
 ## Administrator access
 
