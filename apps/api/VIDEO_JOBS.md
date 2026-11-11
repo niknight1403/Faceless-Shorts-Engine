@@ -27,4 +27,4 @@ Failures are recorded with stage-specific codes such as `SCRIPT_GENERATION_FAILE
 
 ## Storage
 
-The API and worker must share the same persistent `MEDIA_STORAGE_DIR`. For multi-host production deployments, replace shared local storage with private object storage and equivalent short-lived signed URLs.
+The API and worker must share the same persistent, absolute `MEDIA_STORAGE_DIR` path; both processes fail at startup if it is missing or relative. Mount the same volume at that exact path in both containers. For multi-host production deployments, replace shared local storage with private object storage and equivalent short-lived signed URLs.
