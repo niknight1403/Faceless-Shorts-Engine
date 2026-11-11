@@ -19,6 +19,7 @@ on:
       - "apps/workers/**"
       - "packages/**"
       - "prisma/**"
+      - "scripts/**"
       - "docker-compose.yml"
       - ".env.production.example"
       - ".github/workflows/production-runtime.yml"
