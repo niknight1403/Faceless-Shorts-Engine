@@ -25,3 +25,5 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - name: Test production environment preflight
+        run: pnpm exec tsx --test scripts/production-preflight.test.ts
