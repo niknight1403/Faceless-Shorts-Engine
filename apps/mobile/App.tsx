@@ -8,7 +8,7 @@ import {
   ScrollView, StyleSheet, Text, TextInput, View
 } from "react-native";
 
-const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
+const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "").trim().replace(/\/$/, "");
 
 type Organization = { id: string; name: string; slug: string; role: string };
 type Asset = { id: string; kind: string; mimeType: string; sizeBytes: string | null; downloadUrl?: string | null };
@@ -20,6 +20,7 @@ type Project = { id: string; name: string; description?: string | null; organiza
 type AdminOverview = { role: string; counts: { projects: number; jobs: number; completedJobs: number; failedJobs: number } };
 
 async function api<T>(path: string, token?: string, init: RequestInit = {}): Promise<T> {
+  if (!API_URL) throw new Error("Backend-Adresse fehlt. EXPO_PUBLIC_API_URL muss beim Android-Build als HTTPS-Adresse gesetzt sein.");
   const headers = new Headers(init.headers);
   headers.set("content-type", "application/json");
   if (token) headers.set("authorization", "Bearer " + token);
@@ -194,7 +195,7 @@ export default function App() {
             <Pressable style={[styles.primaryButton, busy && styles.disabled]} onPress={signIn} disabled={busy}>
               {busy ? <ActivityIndicator color="#08110F" /> : <Text style={styles.primaryText}>Sicher anmelden</Text>}
             </Pressable>
-            <Text style={styles.hint}>API: {API_URL} · Sitzung wird verschlüsselt auf diesem Gerät gespeichert und kann jederzeit widerrufen werden.</Text>
+            <Text style={styles.hint}>{API_URL ? `Backend: ${API_URL}` : "Backend nicht konfiguriert: Setze EXPO_PUBLIC_API_URL als GitHub Actions Variable und baue die APK erneut."} · Sitzung wird verschlüsselt auf diesem Gerät gespeichert.</Text>
           </View>
         </View>
       ) : (
