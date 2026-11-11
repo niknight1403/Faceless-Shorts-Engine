@@ -1,7 +1,17 @@
 import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
-import { promisify } from "node:util";
 
-const scrypt = promisify(scryptCallback);
+const scrypt = (
+  password: string,
+  salt: Buffer,
+  keyLength: number,
+  options: { N: number; r: number; p: number },
+): Promise<Buffer> => new Promise((resolve, reject) => {
+  scryptCallback(password, salt, keyLength, options, (error, derivedKey) => {
+    if (error) reject(error);
+    else resolve(derivedKey);
+  });
+});
+
 export const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 
 export async function verifyPassword(password: string, encoded: string | null): Promise<boolean> {
@@ -14,7 +24,7 @@ export async function verifyPassword(password: string, encoded: string | null): 
   const salt = validFormat ? Buffer.from(parts[4]!, "hex") : Buffer.alloc(16);
   const expected = validFormat ? Buffer.from(parts[5]!, "hex") : Buffer.alloc(64);
   try {
-    const actual = await scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 }) as Buffer;
+    const actual = await scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 });
     return validFormat && actual.length === expected.length && timingSafeEqual(actual, expected);
   } catch { return false; }
 }
