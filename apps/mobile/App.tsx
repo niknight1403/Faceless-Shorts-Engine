@@ -16,12 +16,29 @@ let API_URL = BUILD_API_URL;
  * localhost or a LAN address, which is how the self-hosted development backend is reached.
  */
 function normalizeApiUrl(value: string) {
-  const trimmed = value.trim().replace(/\/+$/, "");
+  const trimmed = value.trim().replace(/\\/+$/, "");
   if (!trimmed) return "";
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  const host = (trimmed.split("/")[0] ?? "").toLowerCase();
-  const isLocal = /^(localhost|127\.0\.0\.1|\[::1\]|(\d{1,3}\.){3}\d{1,3})(:\d+)?$/.test(host);
-  return (isLocal ? "http://" : "https://") + trimmed;
+  const candidate = /^https?:\\/\\//i.test(trimmed) ? trimmed : "https://" + trimmed;
+  let parsed: URL;
+  try { parsed = new URL(candidate); } catch { throw new Error("Ungültige Backend-Adresse."); }
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error("Die Backend-Adresse darf keine Zugangsdaten, Query-Parameter oder Fragmente enthalten.");
+  }
+  const hostname = parsed.hostname.toLowerCase().replace(/^\\[|\\]$/g, "");
+  const octets = hostname.split(".").map(Number);
+  const ipv4 = octets.length === 4 && octets.every(part => Number.isInteger(part) && part >= 0 && part <= 255);
+  const privateIpv4 = ipv4 && (
+    octets[0] === 10 ||
+    (octets[0] === 172 && octets[1]! >= 16 && octets[1]! <= 31) ||
+    (octets[0] === 192 && octets[1] === 168) ||
+    (octets[0] === 169 && octets[1] === 254) ||
+    octets[0] === 127
+  );
+  const localHost = hostname === "localhost" || hostname === "::1" || privateIpv4;
+  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && localHost)) {
+    throw new Error("Externe Backend-Adressen müssen HTTPS verwenden. HTTP ist nur für lokale/private Entwicklungsserver erlaubt.");
+  }
+  return parsed.origin;
 }
 
 type Organization = { id: string; name: string; slug: string; role: string };
