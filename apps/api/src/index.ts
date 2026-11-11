@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { mkdir, stat } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { PrismaClient, JobStatus } from "@prisma/client";
@@ -102,13 +102,21 @@ const server = createServer(async (req, res) => {
       }
       const asset = await prisma.asset.findUnique({ where: { id: assetMatch[1] } });
       if (!asset) { json(res, 404, { error: "asset_not_found" }); return; }
-      const filePath = resolve(mediaRoot, asset.storageKey);
-      const relativePath = relative(mediaRoot, filePath);
-      if (!relativePath || relativePath === ".." || relativePath.startsWith(".." + sep) || isAbsolute(relativePath)) {
+      const candidatePath = resolve(mediaRoot, asset.storageKey);
+      const relativeCandidate = relative(mediaRoot, candidatePath);
+      if (!relativeCandidate || relativeCandidate === ".." || relativeCandidate.startsWith(".." + sep) || isAbsolute(relativeCandidate)) {
         json(res, 404, { error: "asset_not_found" }); return;
       }
-      let fileInfo;
-      try { fileInfo = await stat(filePath); } catch { json(res, 404, { error: "asset_file_missing" }); return; }
+      let filePath: string, fileInfo;
+      try {
+        const [actualRoot, actualFile] = await Promise.all([realpath(mediaRoot), realpath(candidatePath)]);
+        const relativeActual = relative(actualRoot, actualFile);
+        if (!relativeActual || relativeActual === ".." || relativeActual.startsWith(".." + sep) || isAbsolute(relativeActual)) {
+          json(res, 404, { error: "asset_not_found" }); return;
+        }
+        filePath = actualFile;
+        fileInfo = await stat(actualFile);
+      } catch { json(res, 404, { error: "asset_file_missing" }); return; }
       if (!fileInfo.isFile()) { json(res, 404, { error: "asset_file_missing" }); return; }
       const range = req.headers.range;
       const rangeMatch = range?.match(/^bytes=(\d*)-(\d*)$/);
