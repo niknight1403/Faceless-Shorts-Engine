@@ -38,19 +38,20 @@ test("Agentforge2 hub imports only enabled free keyless routes and reads hunter 
   const hunter = new FreeRouteHunter([]);
   const fakeFetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url.endsWith("/api/free-routes")) return new Response(JSON.stringify({ routes: [
+    if (url.endsWith("/api/free-routes")) return new Response(JSON.stringify({ routes: [{ id: 7 }, { id: 8 }] }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.endsWith("/api/routes")) return new Response(JSON.stringify([
       { id: 7, provider: "pollinations", base_url: "https://text.pollinations.ai/openai", model: "openai", is_free: 1, enabled: 1, priority: 20 },
       { id: 8, provider: "openrouter", base_url: "https://openrouter.ai/api/v1", model: "private-route", is_free: 1, enabled: 1, key_env: "AGENTFORGE_ONLY_KEY" },
       { id: 9, provider: "paid", base_url: "https://paid.example/v1", model: "paid", is_free: 0, enabled: 1 }
-    ] }), { status: 200, headers: { "content-type": "application/json" } });
-    return new Response(JSON.stringify({ routes: { total: 3, free: 2 } }), { status: 200, headers: { "content-type": "application/json" } });
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ hunter: { routes: { total: 3, free: 2 } } }), { status: 200, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
   try {
     await hunter.refreshFromAgentforgeHub(fakeFetch, true);
     assert.equal(hunter.snapshot().length, 1);
     assert.equal(hunter.snapshot()[0]?.id, "agentforge-hub-7");
-    assert.equal((hunter.hubStatus()?.connected), true);
-    assert.equal((hunter.hubStatus()?.routesImported), 1);
+    assert.equal(hunter.hubStatus()?.connected, true);
+    assert.equal(hunter.hubStatus()?.routesImported, 1);
   } finally {
     globalThis.fetch = originalFetch;
     if (oldUrl === undefined) delete process.env.AGENTFORGE_HUB_URL; else process.env.AGENTFORGE_HUB_URL = oldUrl;
