@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { PrismaClient, JobStatus } from "@prisma/client";
 import { Queue } from "bullmq";
-import Redis from "ioredis";
+import { Redis } from "ioredis";
 
 const port = Number(process.env.API_PORT ?? 4000);
 const connection = new Redis(process.env.REDIS_URL ?? "redis://127.0.0.1:6379", { maxRetriesPerRequest: null });
