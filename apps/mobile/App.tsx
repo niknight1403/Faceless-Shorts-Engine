@@ -6,7 +6,7 @@ export default function App() {
     <SafeAreaView style={styles.safe}>
       <StatusBar style="light" />
       <View style={styles.container}>
-        <Text style={styles.eyebrow}>FACeless / STUDIO</Text>
+        <Text style={styles.eyebrow}>FACELESS / STUDIO</Text>
         <Text style={styles.title}>Deine nächste Story.</Text>
         <Text style={styles.subtitle}>
           Erstelle, bearbeite und veröffentliche vertikale Videos an einem Ort.
