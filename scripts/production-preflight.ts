@@ -27,8 +27,9 @@ export function validateProductionEnv(env: Record<string, string | undefined>): 
   if (env.BOOTSTRAP_ADMIN_PASSWORD && env.BOOTSTRAP_ADMIN_PASSWORD.length < 14) errors.push("BOOTSTRAP_ADMIN_PASSWORD_must_be_at_least_14_characters");
   if (!env.REDIS_URL?.startsWith("redis://") && !env.REDIS_URL?.startsWith("rediss://")) errors.push("REDIS_URL_must_use_redis");
   if (!env.MEDIA_STORAGE_DIR || !env.MEDIA_STORAGE_DIR.startsWith("/")) errors.push("MEDIA_STORAGE_DIR_must_be_absolute");
-  if (!env.EXPO_PUBLIC_API_URL || env.EXPO_PUBLIC_API_URL.includes("example.com")) errors.push("EXPO_PUBLIC_API_URL_missing_or_placeholder");
+  if (!env.EXPO_PUBLIC_API_URL) errors.push("EXPO_PUBLIC_API_URL_missing_or_placeholder");
   else if (!/^https:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/[^\s]*)?$/i.test(env.EXPO_PUBLIC_API_URL)) errors.push("EXPO_PUBLIC_API_URL_must_be_a_valid_https_url");
+  else if (env.EXPO_PUBLIC_API_URL.includes("example.com")) errors.push("EXPO_PUBLIC_API_URL_missing_or_placeholder");
   if (env.API_BIND && env.API_BIND !== "127.0.0.1" && env.API_BIND !== "localhost") warnings.push("API_BIND_is_not_loopback_put_TLS_proxy_and_firewall_in_front");
 
   if (env.PIPER_MODEL) enabledRoutes.push("piper-local");
