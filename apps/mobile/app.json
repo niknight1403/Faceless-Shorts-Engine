@@ -9,10 +9,24 @@
     "splash": {
       "backgroundColor": "#090B12"
     },
-    "ios": { "supportsTablet": true },
+    "ios": {
+      "supportsTablet": true
+    },
     "android": {
       "package": "com.facelessshorts.engine",
-      "adaptiveIcon": { "backgroundColor": "#090B12" }
-    }
+      "adaptiveIcon": {
+        "backgroundColor": "#090B12"
+      }
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.25"
+          }
+        }
+      ]
+    ]
   }
 }
