@@ -11,6 +11,7 @@
 ## Administrator access
 
 - End-user sessions can create video jobs only with EDITOR, ADMIN, or OWNER membership in the target project's organization; reading a job requires organization membership. Internal `API_ACCESS_TOKEN` requests remain privileged service-to-service operations.
+- `GET /v1/projects` returns only projects belonging to the authenticated user's organizations, with the latest 12 jobs and safe asset metadata.
 - `GET /v1/admin/overview` requires a valid session and an `x-organization-id` header for an organization where the caller is OWNER or ADMIN.
 - Role membership is reloaded from PostgreSQL for every admin request. A role in a client token is never trusted.
 - The admin overview returns counts only; it does not expose secrets, password hashes, or session tokens.
