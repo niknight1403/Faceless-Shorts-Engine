@@ -55,22 +55,22 @@ jobs:
           test -s dist/Faceless-Shorts.apk
           unzip -l dist/Faceless-Shorts.apk | grep -q 'assets/index.android.bundle'
           cat > dist/README.txt <<'EOF'
-Faceless Shorts Engine - Android APK
+          Faceless Shorts Engine - Android APK
 
-Installation:
-1. Transfer Faceless-Shorts.apk to your Android device.
-2. Open the APK and allow installation from this source if Android asks.
-3. Install and open the app.
+          Installation:
+          1. Transfer Faceless-Shorts.apk to your Android device.
+          2. Open the APK and allow installation from this source if Android asks.
+          3. Install and open the app.
 
-Backend:
-The APK requires a reachable HTTPS API configured at build time through
-the GitHub Actions repository variable EXPO_PUBLIC_API_URL.
-If that variable was empty during this build, sign-in will show a backend
-configuration error until a correctly configured APK is built.
+          Backend:
+          The APK requires a reachable HTTPS API configured at build time through
+          the GitHub Actions repository variable EXPO_PUBLIC_API_URL.
+          If that variable was empty during this build, sign-in will show a backend
+          configuration error until a correctly configured APK is built.
 
-This CI APK is signed with the workflow's Android release build key.
-It is intended for testing, not as a Play Store signing identity.
-EOF
+          This CI APK is signed with the workflow's Android release build key.
+          It is intended for testing, not as a Play Store signing identity.
+          EOF
           (cd dist && sha256sum Faceless-Shorts.apk > SHA256SUMS.txt)
           cd dist
           zip -9 Faceless-Shorts-Android-APK.zip Faceless-Shorts.apk README.txt SHA256SUMS.txt
