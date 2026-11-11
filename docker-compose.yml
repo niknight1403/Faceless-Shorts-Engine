@@ -3,22 +3,85 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: shorts
-      POSTGRES_PASSWORD: shorts
-      POSTGRES_DB: shorts_engine
-    ports: ["5432:5432"]
-    volumes: [postgres_data:/var/lib/postgresql/data]
+      POSTGRES_USER: ${POSTGRES_USER:-shorts}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-shorts_engine}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U shorts -d shorts_engine"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shorts} -d ${POSTGRES_DB:-shorts_engine}"]
       interval: 5s
       timeout: 3s
       retries: 10
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    ports: ["6379:6379"]
-    volumes: [redis_data:/data]
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      API_PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shorts}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-shorts_engine}?schema=public
+      REDIS_URL: redis://redis:6379
+      MEDIA_STORAGE_DIR: /var/lib/faceless-shorts/media
+    ports:
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-4000}:4000"
+    volumes:
+      - media_data:/var/lib/faceless-shorts/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/workers/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shorts}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-shorts_engine}?schema=public
+      REDIS_URL: redis://redis:6379
+      MEDIA_STORAGE_DIR: /var/lib/faceless-shorts/media
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+    volumes:
+      - media_data:/var/lib/faceless-shorts/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
 volumes:
   postgres_data:
   redis_data:
+  media_data:
