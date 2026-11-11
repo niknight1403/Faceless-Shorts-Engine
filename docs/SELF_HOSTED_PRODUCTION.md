@@ -36,7 +36,7 @@ Run this once after the stack is healthy:
 docker compose --env-file .env.production -f docker-compose.production.yml exec app pnpm admin:bootstrap
 ```
 
-The bootstrap script reads `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` from the container environment. If you use the command above, add those two variables to the app service's `environment` section in the Compose file (or use a one-off `docker compose run --rm` invocation with the same image and variables). Do not reuse credentials previously pasted into chat or source control.
+The app service loads the local `.env.production` file, so the bootstrap command receives `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD`. Do not reuse credentials previously pasted into chat or source control.
 
 ## 4. Verify API and configure Android
 
