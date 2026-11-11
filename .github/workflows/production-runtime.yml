@@ -168,6 +168,9 @@ jobs:
           grep -Eq '^HTTP/[^ ]+ 206' /tmp/runtime-e2e-range.headers
           test "$(stat -c %s /tmp/runtime-e2e-range.bin)" -eq 100
           docker compose exec -T api ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "/var/lib/faceless-shorts/media/$JOB_ID/final.mp4"
+          curl --fail --silent --show-error -X POST -H "authorization: Bearer $SESSION_ACCESS_TOKEN" http://127.0.0.1:4000/v1/auth/logout
+          logout_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -H "authorization: Bearer $SESSION_ACCESS_TOKEN" http://127.0.0.1:4000/v1/auth/me)"
+          test "$logout_status" = "401"
       - name: Collect service logs on failure
         if: failure()
         run: docker compose logs --no-color
