@@ -8,7 +8,21 @@ import {
   ScrollView, StyleSheet, Text, TextInput, View
 } from "react-native";
 
-const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "").trim().replace(/\/$/, "");
+const BUILD_API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "").trim().replace(/\/+$/, "");
+let API_URL = BUILD_API_URL;
+
+/**
+ * Accept full URLs as well as bare hosts. A bare host is assumed to be HTTPS unless it points at
+ * localhost or a LAN address, which is how the self-hosted development backend is reached.
+ */
+function normalizeApiUrl(value: string) {
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const host = (trimmed.split("/")[0] ?? "").toLowerCase();
+  const isLocal = /^(localhost|127\.0\.0\.1|\[::1\]|(\d{1,3}\.){3}\d{1,3})(:\d+)?$/.test(host);
+  return (isLocal ? "http://" : "https://") + trimmed;
+}
 
 type Organization = { id: string; name: string; slug: string; role: string };
 type Asset = { id: string; kind: string; mimeType: string; sizeBytes: string | null; downloadUrl?: string | null };
@@ -56,6 +70,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [sessionChecking, setSessionChecking] = useState(true);
   const [error, setError] = useState("");
+  const [apiDraft, setApiDraft] = useState(BUILD_API_URL);
+  const [editingApi, setEditingApi] = useState(!BUILD_API_URL);
 
   const loadDashboard = useCallback(async (sessionToken: string, orgs: Organization[]) => {
     setLoading(true); setError("");
@@ -80,6 +96,11 @@ export default function App() {
     let active = true;
     const restoreSession = async () => {
       try {
+        const savedApi = await SecureStore.getItemAsync("faceless.api");
+        if (savedApi) {
+          API_URL = normalizeApiUrl(savedApi) || BUILD_API_URL;
+          if (active) setApiDraft(API_URL);
+        }
         const savedToken = await SecureStore.getItemAsync("faceless.session");
         if (!savedToken) return;
         const current = await api<{ user: { email: string }; organizations: Organization[] }>("/v1/auth/me", savedToken);
@@ -97,6 +118,16 @@ export default function App() {
     void restoreSession();
     return () => { active = false; };
   }, [loadDashboard]);
+
+  const saveApi = async () => {
+    const next = normalizeApiUrl(apiDraft);
+    if (!next) { setError("Bitte eine Backend-Adresse eingeben, zum Beispiel https://api.deine-domain.de"); return; }
+    API_URL = next;
+    setApiDraft(next);
+    setError("");
+    setEditingApi(false);
+    await SecureStore.setItemAsync("faceless.api", next).catch(() => undefined);
+  };
 
   const signIn = async () => {
     if (!email.trim() || !password) { setError("Bitte E-Mail und Passwort eingeben."); return; }
@@ -195,7 +226,20 @@ export default function App() {
             <Pressable style={[styles.primaryButton, busy && styles.disabled]} onPress={signIn} disabled={busy}>
               {busy ? <ActivityIndicator color="#08110F" /> : <Text style={styles.primaryText}>Sicher anmelden</Text>}
             </Pressable>
-            <Text style={styles.hint}>{API_URL ? `Backend: ${API_URL}` : "Backend nicht konfiguriert: Setze EXPO_PUBLIC_API_URL als GitHub Actions Variable und baue die APK erneut."} · Sitzung wird verschlüsselt auf diesem Gerät gespeichert.</Text>
+            {editingApi ? (
+              <View>
+                <Text style={styles.label}>BACKEND-ADRESSE</Text>
+                <TextInput value={apiDraft} onChangeText={setApiDraft} placeholder="https://api.deine-domain.de" placeholderTextColor="#66738D" autoCapitalize="none" autoCorrect={false} keyboardType="url" onSubmitEditing={saveApi} style={styles.input} />
+                <Pressable style={styles.primaryButton} onPress={saveApi}>
+                  <Text style={styles.primaryText}>Backend speichern</Text>
+                </Pressable>
+                <Text style={styles.hint}>Die Adresse der Faceless-Shorts-API, erreichbar von diesem Gerät. Sitzung wird verschlüsselt auf diesem Gerät gespeichert.</Text>
+              </View>
+            ) : (
+              <Pressable onPress={() => setEditingApi(true)}>
+                <Text style={styles.hint}>Backend: {API_URL || "nicht konfiguriert"} · Server ändern · Sitzung wird verschlüsselt auf diesem Gerät gespeichert.</Text>
+              </Pressable>
+            )}
           </View>
         </View>
       ) : (

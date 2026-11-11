@@ -30,4 +30,6 @@ To build, open **Actions → Android APK → Run workflow**, or push a change un
 
 Set the repository Actions variable `EXPO_PUBLIC_API_URL` to the public HTTPS API origin before building a connected app. If it is missing, the workflow deliberately still creates an installable diagnostic APK, but the app will display a backend-configuration error and cannot sign in or create videos. The artifact is therefore not proof of a live backend deployment.
 
+The built APK is installable and keeps working without a rebuild: the login screen shows the active backend and lets you enter or change the API origin (for example `https://api.example.com`, or `http://192.168.0.10:4000` for a backend on your own network). The address is stored with `expo-secure-store`, so the next start reuses it. `EXPO_PUBLIC_API_URL` only sets the default baked into the APK.
+
 The API and worker are provisioned separately by the root `docker-compose.yml`. Follow the root README deployment steps, configure unique secrets in the server-side `.env`, place a TLS reverse proxy in front of the API, and verify `/health/ready` before setting the mobile API URL.
