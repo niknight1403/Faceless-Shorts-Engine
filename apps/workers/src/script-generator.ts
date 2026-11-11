@@ -6,10 +6,18 @@ export interface ScriptProvider { readonly name: string; generate(input: ScriptR
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 export function validateScript(script: GeneratedScript, targetDurationSeconds: number): GeneratedScript {
-  if (!script.title.trim() || !script.hook.trim() || !script.callToAction.trim()) throw new Error("script_metadata_missing");
+  if (typeof script.title !== "string" || !script.title.trim() || script.title.length > 500 ||
+      typeof script.hook !== "string" || !script.hook.trim() || script.hook.length > 1000 ||
+      typeof script.callToAction !== "string" || !script.callToAction.trim() || script.callToAction.length > 500) {
+    throw new Error("script_metadata_invalid");
+  }
   if (!Array.isArray(script.scenes) || script.scenes.length < 3 || script.scenes.length > 20) throw new Error("script_scene_count_invalid");
   script.scenes.forEach((scene, index) => {
-    if (scene.order !== index + 1 || !scene.narration.trim() || !scene.visualPrompt.trim()) throw new Error("script_scene_invalid");
+    if (!scene || scene.order !== index + 1 ||
+        typeof scene.narration !== "string" || !scene.narration.trim() || scene.narration.length > 1000 ||
+        typeof scene.visualPrompt !== "string" || !scene.visualPrompt.trim() || scene.visualPrompt.length > 2000) {
+      throw new Error("script_scene_invalid");
+    }
     if (!Number.isInteger(scene.durationMs) || scene.durationMs < 1000 || scene.durationMs > 30000) throw new Error("script_scene_duration_invalid");
   });
   const total = script.scenes.reduce((sum, scene) => sum + scene.durationMs, 0);
