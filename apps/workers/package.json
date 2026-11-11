@@ -9,7 +9,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test"
+    "test": "tsx --test src/script-generator.test.ts"
   },
   "dependencies": {
     "@faceless/shared-types": "workspace:*",
