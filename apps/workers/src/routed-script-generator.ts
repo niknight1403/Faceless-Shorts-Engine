@@ -7,7 +7,9 @@ export class FreeRoutedScriptProvider implements ScriptProvider {
   private readonly hunter: FreeRouteHunter;
   constructor(hunter = new FreeRouteHunter(buildFreeLlmRoutes())) { this.hunter = hunter; }
   routeStatus() { return this.hunter.snapshot(); }
+  hubStatus() { return this.hunter.hubStatus(); }
   async generate(input: ScriptRequest): Promise<GeneratedScript> {
+    await this.hunter.refreshFromAgentforgeHub();
     if (this.hunter.snapshot().length === 0) return this.local.generate(input);
     const prompt = [
       "Create a concise, engaging vertical short-video script.",
