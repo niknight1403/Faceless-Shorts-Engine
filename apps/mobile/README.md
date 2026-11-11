@@ -8,33 +8,26 @@ Set `EXPO_PUBLIC_API_URL` to the reachable API origin before starting Expo.
 
 - Android emulator: use `http://10.0.2.2:4000` when the API runs on the host machine.
 - iOS simulator: use `http://localhost:4000` when the API runs on the same machine.
-- Physical device: use the API host's LAN HTTPS address; do not expose a development API directly to the public internet.
+- Physical device and production builds: use a reachable HTTPS API origin. Do not expose a development API directly to the public internet.
 
 Run `pnpm --filter @faceless/mobile dev` from the repository root. The Expo web export is a development convenience, not a production deployment.
 
-## Included screens
+## Included app capabilities
 
 - Email/password login against `POST /v1/auth/login`.
-- Membership-scoped project list from `GET /v1/projects`.
-- Video job creation through `POST /v1/video-jobs`.
-- Recent job status/progress, signed MP4 download links, and an organization admin summary for OWNER/ADMIN members.
-- Organization-scoped project creation for OWNER/ADMIN/EDITOR members.
+- Session restoration and revocation through `GET /v1/auth/me` and `POST /v1/auth/logout`.
+- Membership-scoped project list and organization-scoped project creation.
+- Video job creation, automatic progress refresh, recent job status, and signed MP4 download links.
+- Organization admin summary for OWNER/ADMIN members.
 
-The bearer session is stored with `expo-secure-store` (Android Keystore-backed secure storage / iOS Keychain) and restored on app start by validating it through `GET /v1/auth/me`. Logout revokes the server session and deletes the local credential. Configure a production HTTPS API origin before release. Provider credentials and the internal `API_ACCESS_TOKEN` must never be embedded in the app.
+The bearer session is stored with `expo-secure-store` (Android Keystore-backed secure storage / iOS Keychain). Provider credentials and the internal `API_ACCESS_TOKEN` must never be embedded in the app.
 
+## Android APK artifact
 
-## Android APK build
+The repository workflow `.github/workflows/android-apk.yml` builds a native release APK with Gradle, verifies the embedded JavaScript bundle, packages the APK into `Faceless-Shorts-Android-APK.zip`, and uploads both files as a GitHub Actions artifact for 30 days.
 
-The reproducible internal Android build is configured in `apps/mobile/eas.json` and
-`.github/workflows/android-apk.yml`. The preview profile produces an installable APK; the
-production profile produces an Android App Bundle (AAB).
+To build, open **Actions → Android APK → Run workflow**, or push a change under `apps/mobile/**`. The artifact appears on the completed workflow run under **Artifacts**. This internal build is signed with the workflow's default debug signing configuration; configure a protected release keystore before distributing a store-ready build.
 
-Before the workflow can build, link this Expo app to an EAS project once from a trusted
-developer machine from `apps/mobile` using `eas init`, then add the resulting
-`extra.eas.projectId` to `app.json` and commit it. The GitHub workflow runs EAS commands
-from this same app directory. Add an Expo access token as the
-repository Actions secret `EXPO_TOKEN` (Settings → Secrets and variables → Actions).
-Never commit the token. Run the **Android APK** workflow manually or push a mobile change.
-The workflow downloads the APK, wraps it in `Faceless-Shorts-Android-APK.zip`, and uploads
-that ZIP as a 30-day GitHub Actions artifact. This repository does not contain an APK until
-that workflow has completed successfully.
+Set the repository Actions variable `EXPO_PUBLIC_API_URL` to the public HTTPS API origin before building a connected app. If it is missing, the workflow deliberately still creates an installable diagnostic APK, but the app will display a backend-configuration error and cannot sign in or create videos. The artifact is therefore not proof of a live backend deployment.
+
+The API and worker are provisioned separately by the root `docker-compose.yml`. Follow the root README deployment steps, configure unique secrets in the server-side `.env`, place a TLS reverse proxy in front of the API, and verify `/health/ready` before setting the mobile API URL.
