@@ -1,9 +1,6 @@
-
 export interface VisualRequest { prompt: string; width?: number; height?: number }
 export interface VisualResult { provider: string; mimeType: string; extension: string; image: Buffer }
 export interface VisualProvider { readonly id: string; generate(input: VisualRequest): Promise<VisualResult> }
-
-const env = (name: string) => process.env[name]?.trim() || undefined;
 
 /** Anonymous Pollinations image route. No API key or paid model is used. */
 export class PollinationsVisualProvider implements VisualProvider {
@@ -16,8 +13,8 @@ export class PollinationsVisualProvider implements VisualProvider {
     const response = await this.request(url, { signal: AbortSignal.timeout(120_000), headers: { accept: "image/jpeg,image/png,image/webp" } });
     if (!response.ok) throw new Error("pollinations_http_" + response.status);
     const mimeType = (response.headers.get("content-type") ?? "").split(";")[0]!.toLowerCase();
-    const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
-    if (!mimeType.startsWith("image/")) throw new Error("visual_provider_invalid_content_type:" + mimeType);
+    const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : mimeType === "image/jpeg" ? "jpg" : "";
+    if (!extension) throw new Error("visual_provider_unsupported_content_type:" + mimeType);
     const image = Buffer.from(await response.arrayBuffer());
     if (image.byteLength < 1024) throw new Error("visual_provider_image_too_small");
     if (image.byteLength > 20 * 1024 * 1024) throw new Error("visual_provider_image_too_large");
@@ -37,4 +34,3 @@ export class VisualRouter {
     throw new Error("no_visual_route_available:" + (errors.join("|") || "no_routes_configured"));
   }
 }
-\n
