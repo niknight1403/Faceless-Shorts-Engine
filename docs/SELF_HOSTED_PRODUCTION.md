@@ -4,7 +4,14 @@ This repository can be run as one API + video-worker container with PostgreSQL, 
 
 ## 1. Prepare secrets
 
-On a Linux host with Docker Engine and the Compose plugin, clone the repository and create a local `.env.production` file (never commit it):
+On a Linux host with Docker Engine and the Compose plugin, clone the repository and copy the safe template to a local `.env.production` file (never commit it):
+
+```bash
+cp .env.production.example .env.production
+chmod 600 .env.production
+```
+
+Edit every placeholder before starting the stack.
 
 ```dotenv
 POSTGRES_PASSWORD=replace-with-a-long-random-password
