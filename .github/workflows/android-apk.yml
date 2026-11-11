@@ -14,7 +14,7 @@ permissions:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -29,6 +29,8 @@ jobs:
           java-version: "17"
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
+      - name: Verify Expo asset dependency
+        run: pnpm --filter @faceless/mobile exec node -e "require.resolve('expo-asset/package.json')"
       - name: Generate native Android project
         run: pnpm --filter @faceless/mobile exec expo prebuild --platform android --no-install --non-interactive
       - name: Build installable Android APK
