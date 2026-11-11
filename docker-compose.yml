@@ -68,6 +68,10 @@ services:
       REDIS_URL: redis://redis:6379
       MEDIA_STORAGE_DIR: /var/lib/faceless-shorts/media
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      KOKORO_TTS_BASE_URL: ${KOKORO_TTS_BASE_URL:-}
+      KOKORO_TTS_VOICE: ${KOKORO_TTS_VOICE:-}
+      KOKORO_TTS_MODEL: ${KOKORO_TTS_MODEL:-kokoro}
+      VISUALS_BASE_URL: ${VISUALS_BASE_URL:-}
     volumes:
       - media_data:/var/lib/faceless-shorts/media
     depends_on:
@@ -75,6 +79,20 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  mock-providers:
+    profiles: ["e2e"]
+    build:
+      context: .
+      dockerfile: apps/workers/Dockerfile
+    command: ["node", "scripts/mock-media-provider.mjs"]
+    restart: "no"
+    ports: []
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:4010/health"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
 
 volumes:
   postgres_data:
