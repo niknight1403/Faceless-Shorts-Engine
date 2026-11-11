@@ -6,6 +6,7 @@ export class FreeRoutedScriptProvider implements ScriptProvider {
   private readonly local = new LocalScriptProvider();
   private readonly hunter: FreeRouteHunter;
   constructor(hunter = new FreeRouteHunter(buildFreeLlmRoutes())) { this.hunter = hunter; }
+  routeStatus() { return this.hunter.snapshot(); }
   async generate(input: ScriptRequest): Promise<GeneratedScript> {
     if (this.hunter.snapshot().length === 0) return this.local.generate(input);
     const prompt = [
