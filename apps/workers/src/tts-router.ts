@@ -13,8 +13,10 @@ function runPiper(binary: string, model: string, output: string, text: string): 
   });
 }
 export interface TtsResult { provider: string; mimeType: string; extension: string; audio: Buffer }
-type TtsRoute = { id: string; synthesize(text: string, language: string): Promise<TtsResult> };
+export interface TtsRoute { id: string; synthesize(text: string, language: string): Promise<TtsResult> }
 const env = (name: string) => process.env[name]?.trim() || undefined;
+let lastTtsAiRequestAt = 0;
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 function createRoutes(): TtsRoute[] {
   const routes: TtsRoute[] = [];
@@ -29,28 +31,43 @@ function createRoutes(): TtsRoute[] {
   }});
   const kokoroUrl = env("KOKORO_TTS_BASE_URL");
   if (kokoroUrl && env("KOKORO_TTS_VOICE")) routes.push({ id: "kokoro-local", async synthesize(text) {
-    const response = await fetch(`${kokoroUrl.replace(/\\/+$/, "")}/audio/speech`, {
-      method: "POST", headers: { "content-type": "application/json", ...(env("KOKORO_TTS_API_KEY") ? { authorization: `Bearer ${env("KOKORO_TTS_API_KEY")}` } : {}) },
+    const response = await fetch(kokoroUrl.replace(/\/+$/, "") + "/audio/speech", {
+      method: "POST", headers: { "content-type": "application/json", ...(env("KOKORO_TTS_API_KEY") ? { authorization: "Bearer " + env("KOKORO_TTS_API_KEY") } : {}) },
       body: JSON.stringify({ model: env("KOKORO_TTS_MODEL") ?? "kokoro", input: text, voice: env("KOKORO_TTS_VOICE"), response_format: "wav" }),
       signal: AbortSignal.timeout(90_000)
     });
-    if (!response.ok) throw new Error(`kokoro_http_${response.status}`);
+    if (!response.ok) throw new Error("kokoro_http_" + response.status);
     return { provider: "kokoro-local", mimeType: response.headers.get("content-type") ?? "audio/wav", extension: "wav", audio: Buffer.from(await response.arrayBuffer()) };
+  }});
+  const openRouterKey = env("OPENROUTER_API_KEY"), openRouterTtsModel = env("OPENROUTER_TTS_MODEL");
+  if (openRouterKey && openRouterTtsModel?.endsWith(":free") && env("OPENROUTER_TTS_VOICE")) routes.push({ id: "openrouter-free-tts", async synthesize(text) {
+    const response = await fetch("https://openrouter.ai/api/v1/audio/speech", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer " + openRouterKey, "HTTP-Referer": "https://github.com/niknight1403/Faceless-Shorts-Engine", "X-Title": "Faceless Shorts Engine" },
+      body: JSON.stringify({ model: openRouterTtsModel, input: text, voice: env("OPENROUTER_TTS_VOICE"), response_format: "wav" }),
+      signal: AbortSignal.timeout(90_000)
+    });
+    if (!response.ok) throw new Error("openrouter_tts_http_" + response.status);
+    const mimeType = response.headers.get("content-type") ?? "audio/wav";
+    return { provider: "openrouter-free-tts", mimeType, extension: mimeType.includes("mpeg") ? "mp3" : "wav", audio: Buffer.from(await response.arrayBuffer()) };
   }});
   if (env("TTS_AI_ENABLED") !== "false") routes.push({ id: "tts-ai-free", async synthesize(text, language) {
     if (text.length > 500) throw new Error("tts_ai_anonymous_limit_500_chars");
+    const waitMs = Math.max(0, 6_100 - (Date.now() - lastTtsAiRequestAt));
+    if (waitMs) await delay(waitMs);
+    lastTtsAiRequestAt = Date.now();
     const response = await fetch("https://api.tts.ai/v1/tts/", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ model: "piper", text, voice: env("TTS_AI_VOICE") ?? "de_DE-thorsten-medium", language, format: "wav" }),
       signal: AbortSignal.timeout(90_000)
     });
-    if (!response.ok) throw new Error(`tts_ai_http_${response.status}`);
+    if (!response.ok) throw new Error("tts_ai_http_" + response.status);
     return { provider: "tts-ai-free", mimeType: response.headers.get("content-type") ?? "audio/wav", extension: "wav", audio: Buffer.from(await response.arrayBuffer()) };
   }});
   return routes;
 }
 
-/** Free-only TTS cascade. A provider is used only when configured or explicitly listed here. */
+/** Free-only TTS cascade. Paid model IDs are never admitted. */
 export class TtsRouter {
   constructor(private readonly routes: TtsRoute[] = createRoutes()) {}
   availableRoutes(): string[] { return this.routes.map(route => route.id); }
@@ -61,8 +78,8 @@ export class TtsRouter {
         const result = await route.synthesize(text, language);
         if (!result.audio.length) throw new Error("empty_audio");
         return result;
-      } catch (error) { errors.push(`${route.id}:${error instanceof Error ? error.message : "failed"}`); }
+      } catch (error) { errors.push(route.id + ":" + (error instanceof Error ? error.message : "failed")); }
     }
-    throw new Error(`no_free_tts_route_available:${errors.join("|") || "no_routes_configured"}`);
+    throw new Error("no_free_tts_route_available:" + (errors.join("|") || "no_routes_configured"));
   }
 }
