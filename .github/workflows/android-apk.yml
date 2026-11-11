@@ -27,7 +27,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
       - name: Generate native Android project
