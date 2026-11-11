@@ -5,14 +5,14 @@ on:
     branches: ["feat/bootstrap-foundation"]
     paths:
       - "Dockerfile"
-      - "docker-compose.production.yml"
+      - "docker-compose.yml"
       - ".env.production.example"
       - ".github/workflows/production-compose.yml"
   pull_request:
     branches: [main]
     paths:
       - "Dockerfile"
-      - "docker-compose.production.yml"
+      - "docker-compose.yml"
       - ".env.production.example"
       - ".github/workflows/production-compose.yml"
 
@@ -25,6 +25,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Prepare non-secret validation environment
-        run: cp .env.production.example .env.production
+        run: cp .env.production.example .env
       - name: Validate production Compose model
-        run: docker compose --env-file .env.production -f docker-compose.production.yml config --quiet
+        run: docker compose config --quiet
