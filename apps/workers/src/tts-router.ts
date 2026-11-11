@@ -1,9 +1,17 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-const execFileAsync = promisify(execFile);
+function runPiper(binary: string, model: string, output: string, text: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(binary, ["--model", model, "--output_file", output], { stdio: ["pipe", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
+    child.on("error", reject);
+    child.on("close", code => code === 0 ? resolve() : reject(new Error("piper_exit_" + code + ":" + stderr.slice(0, 500))));
+    child.stdin.end(text);
+  });
+}
 export interface TtsResult { provider: string; mimeType: string; extension: string; audio: Buffer }
 type TtsRoute = { id: string; synthesize(text: string, language: string): Promise<TtsResult> };
 const env = (name: string) => process.env[name]?.trim() || undefined;
@@ -15,7 +23,7 @@ function createRoutes(): TtsRoute[] {
     const dir = await mkdtemp(join(tmpdir(), "faceless-piper-"));
     const output = join(dir, "speech.wav");
     try {
-      await execFileAsync(env("PIPER_BIN") ?? "piper", ["--model", piperModel, "--output_file", output], { input: text, timeout: 120_000, maxBuffer: 1024 * 1024 });
+      await runPiper(env("PIPER_BIN") ?? "piper", piperModel, output, text);
       return { provider: "piper-local", mimeType: "audio/wav", extension: "wav", audio: await readFile(output) };
     } finally { await rm(dir, { recursive: true, force: true }); }
   }});
