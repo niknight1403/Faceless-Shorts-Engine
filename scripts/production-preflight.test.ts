@@ -51,7 +51,7 @@ test("production preflight blocks a missing public API URL", () => {
 });
 
 test("production preflight strips trailing unquoted env comments", () => {
-  const parsed = parseProductionEnv("TTS_AI_ENABLED=false # local-only TTS required\\nEXPO_PUBLIC_API_URL=https://api.example.net # public endpoint");
+  const parsed = parseProductionEnv("TTS_AI_ENABLED=false # local-only TTS required\nEXPO_PUBLIC_API_URL=https://api.example.net # public endpoint");
   const result = validateProductionEnv({ ...base, ...parsed });
   assert.equal(parsed.TTS_AI_ENABLED, "false");
   assert.equal(parsed.EXPO_PUBLIC_API_URL, "https://api.example.net");
