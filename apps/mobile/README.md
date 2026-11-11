@@ -25,13 +25,14 @@ The bearer session is stored with `expo-secure-store` (Android Keystore-backed s
 
 ## Android APK build
 
-The reproducible internal Android build is configured in the repository-root `eas.json` and
+The reproducible internal Android build is configured in `apps/mobile/eas.json` and
 `.github/workflows/android-apk.yml`. The preview profile produces an installable APK; the
 production profile produces an Android App Bundle (AAB).
 
 Before the workflow can build, link this Expo app to an EAS project once from a trusted
-developer machine in `apps/mobile` using `eas init`, then add the resulting
-`extra.eas.projectId` to `app.json` and commit it. Add an Expo access token as the
+developer machine from `apps/mobile` using `eas init`, then add the resulting
+`extra.eas.projectId` to `app.json` and commit it. The GitHub workflow runs EAS commands
+from this same app directory. Add an Expo access token as the
 repository Actions secret `EXPO_TOKEN` (Settings → Secrets and variables → Actions).
 Never commit the token. Run the **Android APK** workflow manually or push a mobile change.
 The workflow downloads the APK, wraps it in `Faceless-Shorts-Android-APK.zip`, and uploads
