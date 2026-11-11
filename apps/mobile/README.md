@@ -21,3 +21,19 @@ Run `pnpm --filter @faceless/mobile dev` from the repository root. The Expo web 
 - Organization-scoped project creation for OWNER/ADMIN/EDITOR members.
 
 The bearer session is stored with `expo-secure-store` (Android Keystore-backed secure storage / iOS Keychain) and restored on app start by validating it through `GET /v1/auth/me`. Logout revokes the server session and deletes the local credential. Configure a production HTTPS API origin before release. Provider credentials and the internal `API_ACCESS_TOKEN` must never be embedded in the app.
+
+
+## Android APK build
+
+The reproducible internal Android build is configured in the repository-root `eas.json` and
+`.github/workflows/android-apk.yml`. The preview profile produces an installable APK; the
+production profile produces an Android App Bundle (AAB).
+
+Before the workflow can build, link this Expo app to an EAS project once from a trusted
+developer machine in `apps/mobile` using `eas init`, then add the resulting
+`extra.eas.projectId` to `app.json` and commit it. Add an Expo access token as the
+repository Actions secret `EXPO_TOKEN` (Settings → Secrets and variables → Actions).
+Never commit the token. Run the **Android APK** workflow manually or push a mobile change.
+The workflow downloads the APK, wraps it in `Faceless-Shorts-Android-APK.zip`, and uploads
+that ZIP as a 30-day GitHub Actions artifact. This repository does not contain an APK until
+that workflow has completed successfully.
