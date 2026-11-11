@@ -1,4 +1,4 @@
-export interface FreeLlmRoute { id: string; model: string; baseUrl: string; apiKey?: string; priority: number; free: true }
+export interface FreeLlmRoute { id: string; model: string; baseUrl: string; apiKey?: string; priority: number; free: true; kind?: "chat-completions" | "agentforge-hub" }
 export interface LlmRouteResult { provider: string; model: string; text: string; latencyMs: number }
 export interface RouteSnapshot { id: string; model: string; priority: number; available: boolean; failures: number; latencyMs: number | null; cooldownUntil: string | null; remainingRequests: number | null; remainingTokens: number | null }
 type RouteState = { failures: number; latencyMs: number | null; cooldownUntil: number; remainingRequests: number | null; remainingTokens: number | null };
@@ -7,18 +7,22 @@ const endpoint = (baseUrl: string) => baseUrl.replace(/\/+$/, "") + "/chat/compl
 
 export function buildFreeLlmRoutes(): FreeLlmRoute[] {
   const routes: FreeLlmRoute[] = [];
+  const hub = env("AGENTFORGE_HUB_URL")?.replace(/\/+$/, "");
+  if (hub && env("AGENTFORGE_HUB_FREE_ONLY_CONFIRMED") === "true") {
+    routes.push({ id: "agentforge2-free-route-hunter", model: "agentforge2-free-cascade", baseUrl: hub + "/api/nexussphere/complete", apiKey: env("AGENTFORGE_HUB_TOKEN"), priority: 2, free: true, kind: "agentforge-hub" });
+  }
   const ollamaModel = env("OLLAMA_MODEL");
   if (ollamaModel) routes.push({ id: "ollama-local", model: ollamaModel, baseUrl: env("OLLAMA_BASE_URL") ?? "http://127.0.0.1:11434/v1", priority: 1, free: true });
   const cerebrasKey = env("CEREBRAS_API_KEY");
-  if (cerebrasKey && env("CEREBRAS_FREE_TRIAL_ENABLED") === "true") routes.push({ id: "cerebras-free-trial", model: env("CEREBRAS_MODEL") ?? "gpt-oss-120b", baseUrl: "https://api.cerebras.ai/v1", apiKey: cerebrasKey, priority: 2, free: true });
+  if (cerebrasKey && env("CEREBRAS_FREE_TRIAL_ENABLED") === "true") routes.push({ id: "cerebras-free-trial", model: env("CEREBRAS_MODEL") ?? "gpt-oss-120b", baseUrl: "https://api.cerebras.ai/v1", apiKey: cerebrasKey, priority: 3, free: true });
   const groqKey = env("GROQ_API_KEY");
-  if (groqKey && env("GROQ_FREE_TIER_ENABLED") === "true") routes.push({ id: "groq-free-tier", model: env("GROQ_MODEL") ?? "openai/gpt-oss-20b", baseUrl: "https://api.groq.com/openai/v1", apiKey: groqKey, priority: 3, free: true });
+  if (groqKey && env("GROQ_FREE_TIER_ENABLED") === "true") routes.push({ id: "groq-free-tier", model: env("GROQ_MODEL") ?? "openai/gpt-oss-20b", baseUrl: "https://api.groq.com/openai/v1", apiKey: groqKey, priority: 4, free: true });
   const geminiKey = env("GEMINI_API_KEY");
-  if (geminiKey && env("GEMINI_FREE_TIER_ENABLED") === "true") routes.push({ id: "gemini-free-tier", model: env("GEMINI_MODEL") ?? "gemini-2.5-flash", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", apiKey: geminiKey, priority: 4, free: true });
+  if (geminiKey && env("GEMINI_FREE_TIER_ENABLED") === "true") routes.push({ id: "gemini-free-tier", model: env("GEMINI_MODEL") ?? "gemini-2.5-flash", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", apiKey: geminiKey, priority: 5, free: true });
   const account = env("CLOUDFLARE_ACCOUNT_ID"), token = env("CLOUDFLARE_API_TOKEN");
-  if (account && token && env("CLOUDFLARE_FREE_TIER_ENABLED") === "true") routes.push({ id: "cloudflare-workers-ai-free", model: env("CLOUDFLARE_AI_MODEL") ?? "@cf/meta/llama-3.3-70b-instruct-fp8-fast", baseUrl: "https://api.cloudflare.com/client/v4/accounts/" + account + "/ai/v1", apiKey: token, priority: 5, free: true });
+  if (account && token && env("CLOUDFLARE_FREE_TIER_ENABLED") === "true") routes.push({ id: "cloudflare-workers-ai-free", model: env("CLOUDFLARE_AI_MODEL") ?? "@cf/meta/llama-3.3-70b-instruct-fp8-fast", baseUrl: "https://api.cloudflare.com/client/v4/accounts/" + account + "/ai/v1", apiKey: token, priority: 6, free: true });
   const openRouterKey = env("OPENROUTER_API_KEY"), openRouterModel = env("OPENROUTER_MODEL") ?? "openrouter/free";
-  if (openRouterKey && (openRouterModel === "openrouter/free" || openRouterModel.endsWith(":free"))) routes.push({ id: "openrouter-free", model: openRouterModel, baseUrl: "https://openrouter.ai/api/v1", apiKey: openRouterKey, priority: 6, free: true });
+  if (openRouterKey && (openRouterModel === "openrouter/free" || openRouterModel.endsWith(":free"))) routes.push({ id: "openrouter-free", model: openRouterModel, baseUrl: "https://openrouter.ai/api/v1", apiKey: openRouterKey, priority: 7, free: true });
   const custom = env("FREE_LLM_CUSTOM_ROUTES");
   if (custom) {
     try {
@@ -54,43 +58,45 @@ export class FreeRouteHunter {
     if (!hub) return;
     if (!force && Date.now() - this.lastHubSync < 60_000) return;
     this.lastHubSync = Date.now();
-    let hubUrl: URL;
-    try { hubUrl = new URL(hub); } catch { this.upstreamHubStatus = { configured: true, connected: false, error: "invalid_hub_url" }; return; }
-    if (hubUrl.protocol !== "https:" && !(hubUrl.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(hubUrl.hostname))) {
+    let parsedHub: URL;
+    try { parsedHub = new URL(hub); } catch { this.upstreamHubStatus = { configured: true, connected: false, error: "invalid_hub_url" }; return; }
+    if (parsedHub.protocol !== "https:" && !(parsedHub.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(parsedHub.hostname))) {
       this.upstreamHubStatus = { configured: true, connected: false, error: "hub_must_use_https_or_localhost" }; return;
     }
     const headers = { accept: "application/json", ...(env("AGENTFORGE_HUB_TOKEN") ? { authorization: "Bearer " + env("AGENTFORGE_HUB_TOKEN") } : {}) };
     try {
       const base = hub.replace(/\/+$/, "");
-      const [routesResponse, hunterResponse] = await Promise.all([
+      const responses = await Promise.all([
         fetchImpl(base + "/api/free-routes", { headers, signal: AbortSignal.timeout(5_000) }),
+        fetchImpl(base + "/api/routes", { headers, signal: AbortSignal.timeout(5_000) }),
         fetchImpl(base + "/api/free-routes/hunter", { headers, signal: AbortSignal.timeout(5_000) })
       ]);
-      if (!routesResponse.ok) throw new Error("hub_routes_http_" + routesResponse.status);
-      const data = await routesResponse.json() as { routes?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
-      const rows = Array.isArray(data) ? data : Array.isArray(data.routes) ? data.routes : [];
+      if (!responses[0].ok || !responses[1].ok) throw new Error("agentforge_hub_route_catalog_unavailable");
+      const freeData = await responses[0].json() as { routes?: Array<Record<string, unknown>> };
+      const freeIds = new Set((freeData.routes ?? []).map(row => String(row.id)));
+      const routeData = await responses[1].json() as Array<Record<string, unknown>>;
+      const rows = Array.isArray(routeData) ? routeData.filter(row => freeIds.has(String(row.id))) : [];
       let imported = 0;
       for (const row of rows) {
-        const free = row.is_free === 1 || row.is_free === true || row.isFree === true || row.free === true;
-        const enabled = row.enabled !== false && row.enabled !== 0 && row.available !== false && row.dead !== true;
         const provider = String(row.provider ?? "").toLowerCase();
         const keyEnv = String(row.key_env ?? row.keyEnv ?? "").trim();
         const apiKey = keyEnv ? env(keyEnv) : undefined;
         const baseUrl = String(row.base_url ?? row.baseUrl ?? "").trim();
         const model = String(row.model ?? "").trim();
-        if (!free || !enabled || !baseUrl || !model || !allowedHubRouteUrl(baseUrl)) continue;
+        const enabled = row.enabled !== false && row.enabled !== 0 && row.available !== false && row.dead !== true;
+        if (!enabled || !baseUrl || !model || !allowedHubRouteUrl(baseUrl)) continue;
         if (keyEnv && !apiKey) continue;
         if (!keyEnv && !["ollama", "pollinations"].includes(provider)) continue;
         const id = "agentforge-hub-" + String(row.id ?? provider + "-" + model).replace(/[^a-zA-Z0-9_-]/g, "-");
         if (this.routes.some(route => route.id === id)) continue;
-        const priority = provider === "ollama" ? 2 : 10 + (Number(row.priority) || 20);
+        const priority = provider === "ollama" ? 2 : 15 + (Number(row.priority) || 20);
         this.routes.push({ id, model, baseUrl, ...(apiKey ? { apiKey } : {}), priority, free: true });
         this.state.set(id, { failures: 0, latencyMs: null, cooldownUntil: 0, remainingRequests: null, remainingTokens: null });
         imported += 1;
       }
       let hunter: unknown = null;
-      if (hunterResponse.ok) hunter = await hunterResponse.json();
-      this.upstreamHubStatus = { configured: true, connected: true, routesReceived: rows.length, routesImported: imported, hunter };
+      if (responses[2].ok) hunter = await responses[2].json();
+      this.upstreamHubStatus = { configured: true, connected: true, freeRoutes: freeIds.size, routesReceived: rows.length, routesImported: imported, hunter };
     } catch (error) {
       this.upstreamHubStatus = { configured: true, connected: false, error: error instanceof Error ? error.message : "hub_unreachable" };
     }
@@ -116,10 +122,10 @@ export class FreeRouteHunter {
     for (const route of candidates) {
       const state = this.state.get(route.id)!, started = Date.now();
       try {
-        const response = await fetch(endpoint(route.baseUrl), {
+        const response = await fetch(route.kind === "agentforge-hub" ? route.baseUrl : endpoint(route.baseUrl), {
           method: "POST",
           headers: { "content-type": "application/json", ...(route.apiKey ? { authorization: "Bearer " + route.apiKey } : {}), ...(route.id.startsWith("openrouter") ? { "HTTP-Referer": "https://github.com/niknight1403/Faceless-Shorts-Engine", "X-Title": "Faceless Shorts Engine" } : {}) },
-          body: JSON.stringify({ model: route.model, messages: [{ role: "system", content: "Return only valid JSON matching the requested schema. Do not use markdown fences." }, { role: "user", content: prompt }], temperature: 0.7 }),
+          body: JSON.stringify(route.kind === "agentforge-hub" ? { prompt, maxTokens: 2048 } : { model: route.model, messages: [{ role: "system", content: "Return only valid JSON matching the requested schema. Do not use markdown fences." }, { role: "user", content: prompt }], temperature: 0.7 }),
           signal: AbortSignal.timeout(this.timeoutMs)
         });
         const remaining = response.headers.get("x-ratelimit-remaining-requests");
@@ -135,8 +141,8 @@ export class FreeRouteHunter {
           }
           throw new Error(route.id + "_http_" + response.status);
         }
-        const payload = await response.json() as { choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }> };
-        const result = payload.choices?.[0]?.message?.content;
+        const payload = await response.json() as { text?: string; choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }> };
+        const result = route.kind === "agentforge-hub" ? payload.text : payload.choices?.[0]?.message?.content;
         const text = typeof result === "string" ? result : Array.isArray(result) ? result.map(part => part.text ?? "").join("") : "";
         if (!text.trim()) throw new Error(route.id + "_empty_response");
         state.latencyMs = Date.now() - started; state.failures = 0; state.cooldownUntil = 0;
