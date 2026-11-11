@@ -41,6 +41,13 @@ jobs:
           chmod +x ./gradlew
           if [ -z "$EXPO_PUBLIC_API_URL" ]; then echo "::warning::EXPO_PUBLIC_API_URL is not configured; the app will show a backend-configuration error instead of calling localhost."; fi
           ./gradlew --no-daemon --console=plain --stacktrace --max-workers=2 assembleRelease
+      - name: Verify APK signature
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$SDK_ROOT"
+          APKSIGNER="$(find "$SDK_ROOT/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose apps/mobile/android/app/build/outputs/apk/release/app-release.apk
       - name: Package APK as ZIP
         run: |
           mkdir -p dist
