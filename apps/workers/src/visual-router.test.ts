@@ -31,3 +31,21 @@ test("visual provider rejects empty or excessively long prompts", async () => {
   await assert.rejects(() => provider.generate({ prompt: " " }), /visual_prompt_must_be_1_to_2000_characters/);
   await assert.rejects(() => provider.generate({ prompt: "x".repeat(2001) }), /visual_prompt_must_be_1_to_2000_characters/);
 });
+
+test("visual provider supports a configured endpoint for deterministic deployments", async () => {
+  const original = process.env.VISUALS_BASE_URL;
+  let requestedUrl = "";
+  process.env.VISUALS_BASE_URL = "http://mock-providers:4010/prompt/";
+  try {
+    const provider = new PollinationsVisualProvider(async (input) => {
+      requestedUrl = String(input);
+      return new Response(new Uint8Array(2048), { status: 200, headers: { "content-type": "image/png" } });
+    });
+    await provider.generate({ prompt: "A test scene" });
+    assert.match(requestedUrl, /^http:\/\/mock-providers:4010\/prompt\/A%20test%20scene/);
+    assert.match(requestedUrl, /width=720&height=1280/);
+  } finally {
+    if (original === undefined) delete process.env.VISUALS_BASE_URL;
+    else process.env.VISUALS_BASE_URL = original;
+  }
+});
