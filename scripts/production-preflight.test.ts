@@ -22,7 +22,7 @@ test("production preflight accepts unique secrets and a local TTS route", () => 
 });
 
 test("production preflight blocks placeholders and reused secrets", () => {
-  const result = validateProductionEnv({ ...base, API_ACCESS_TOKEN: "CHANGE_TO_A_LONG_RANDOM_SERVER_ONLY_TOKEN", JWT_ACCESS_SECRET: base.API_ACCESS_TOKEN });
+  const result = validateProductionEnv({ ...base, API_ACCESS_TOKEN: "CHANGE_TO_A_LONG_RANDOM_SERVER_ONLY_TOKEN", JWT_ACCESS_SECRET: base.ASSET_SIGNING_SECRET });
   assert.ok(result.errors.includes("API_ACCESS_TOKEN_missing_or_placeholder"));
   assert.ok(result.errors.includes("production_secrets_must_be_unique"));
 });
