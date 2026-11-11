@@ -31,7 +31,7 @@ After bootstrap, the mobile app can sign in through `POST /v1/auth/login`; the A
 
 The default `docker-compose.yml` runs PostgreSQL, Redis, the API, and the video worker as separate services. The API and worker share the persistent `media_data` volume, so completed MP4 assets can be served by the API.
 
-1. Copy `.env.example` to `.env` and replace every placeholder with unique random secrets. Set provider credentials only for routes you intend to enable.
+1. Copy `.env.production.example` to `.env` and replace every placeholder with unique random secrets. Keep the file local; never commit the populated `.env`. Set provider credentials only for routes you intend to enable.
 2. Start the stack with `docker compose up -d --build`.
 3. Confirm readiness with `curl http://127.0.0.1:4000/health/ready`.
 4. Create the first organization administrator with `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD`, and `pnpm admin:bootstrap` from a trusted one-off environment that has the same database URL.
