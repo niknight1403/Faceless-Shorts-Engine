@@ -4,9 +4,9 @@ import { join } from "node:path";
 
 export interface RenderScene { imagePath: string; audioPath: string; durationMs: number; narration: string }
 export interface RenderOptions { outputPath: string; width?: number; height?: number; fps?: number; ffmpegPath?: string }
-function run(binary: string, args: string[]): Promise<void> {
+function run(binary: string, args: string[], cwd?: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(binary, args, { stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawn(binary, args, { cwd, stdio: ["ignore", "ignore", "pipe"] });
     let stderr = "";
     child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
     child.on("error", reject);
@@ -41,12 +41,14 @@ export async function renderVideo(scenes: RenderScene[], options: RenderOptions)
       const scene = scenes[index]!;
       const segment = join(directory, String(index).padStart(3, "0") + ".mp4");
       const duration = Math.max(1, scene.durationMs / 1000);
+      const subtitleName = "scene-" + String(index).padStart(3, "0") + ".srt";
+      await writeFile(join(directory, subtitleName), createSrt([scene]), "utf8");
       await run(options.ffmpegPath ?? "ffmpeg", [
         "-y", "-loop", "1", "-framerate", String(fps), "-i", scene.imagePath, "-i", scene.audioPath,
-        "-vf", "scale=" + width + ":" + height + ":force_original_aspect_ratio=increase,crop=" + width + ":" + height + ",setsar=1",
+        "-vf", "subtitles=" + subtitleName + ",scale=" + width + ":" + height + ":force_original_aspect_ratio=increase,crop=" + width + ":" + height + ",setsar=1",
         "-r", String(fps), "-t", String(duration), "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "128k", "-af", "apad", "-shortest", "-movflags", "+faststart", segment
-      ]);
+      ], directory);
       segmentPaths.push(segment);
     }
     const listPath = join(directory, "concat.txt");
