@@ -61,7 +61,7 @@ const server = createServer(async (req, res) => {
       const body = await readBody<{ email?: string; password?: string }>(req);
       const email = body.email?.trim().toLowerCase() ?? "";
       const password = body.password ?? "";
-      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || !password || password.length > 1024) { json(res, 400, { error: "email_and_password_required" }); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !password || password.length > 1024) { json(res, 400, { error: "email_and_password_required" }); return; }
       const now = Date.now();
       const throttleKey = "faceless:auth:login:" + createHash("sha256").update((req.socket.remoteAddress ?? "unknown") + ":" + email).digest("hex");
       const attempts = await connection.get(throttleKey);
