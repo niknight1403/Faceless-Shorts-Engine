@@ -15,7 +15,8 @@
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",
-    "admin:bootstrap": "tsx scripts/bootstrap-admin.ts"
+    "admin:bootstrap": "tsx scripts/bootstrap-admin.ts",
+    "preflight:production": "tsx scripts/production-preflight.ts"
   },
   "devDependencies": {
     "prisma": "^6.2.1",
