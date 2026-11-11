@@ -16,7 +16,7 @@ async function main() {
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "";
   const organizationName = process.env.BOOTSTRAP_ADMIN_ORGANIZATION?.trim() || "Faceless Shorts";
   const forcePasswordReset = process.env.BOOTSTRAP_ADMIN_FORCE_RESET === "true";
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("BOOTSTRAP_ADMIN_EMAIL_invalid_or_missing");
+  if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) throw new Error("BOOTSTRAP_ADMIN_EMAIL_invalid_or_missing");
   if (password.length < 14) throw new Error("BOOTSTRAP_ADMIN_PASSWORD_must_be_at_least_14_characters");
   if (password.length > 1024) throw new Error("BOOTSTRAP_ADMIN_PASSWORD_too_long");
 
@@ -26,22 +26,31 @@ async function main() {
   }
   const hash = await passwordHash(password);
   const slug = organizationName.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "faceless-shorts";
-  const user = await prisma.user.upsert({
-    where: { email },
-    create: { email, name: "Niko", passwordHash: hash },
-    update: { passwordHash: hash, name: existingUser?.name ?? "Niko" }
+
+  const result = await prisma.$transaction(async tx => {
+    const user = await tx.user.upsert({
+      where: { email },
+      create: { email, name: "Niko", passwordHash: hash },
+      update: { passwordHash: hash, name: existingUser?.name ?? "Niko" }
+    });
+    // Password rotation must invalidate every previously issued bearer session.
+    if (existingUser?.passwordHash && forcePasswordReset) {
+      await tx.session.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+    }
+    const organization = await tx.organization.upsert({
+      where: { slug },
+      create: { name: organizationName, slug },
+      update: { name: organizationName }
+    });
+    await tx.membership.upsert({
+      where: { userId_organizationId: { userId: user.id, organizationId: organization.id } },
+      create: { userId: user.id, organizationId: organization.id, role: MembershipRole.ADMIN },
+      update: { role: MembershipRole.ADMIN }
+    });
+    return { email: user.email, organization: organization.slug };
   });
-  const organization = await prisma.organization.upsert({
-    where: { slug },
-    create: { name: organizationName, slug },
-    update: { name: organizationName }
-  });
-  await prisma.membership.upsert({
-    where: { userId_organizationId: { userId: user.id, organizationId: organization.id } },
-    create: { userId: user.id, organizationId: organization.id, role: MembershipRole.ADMIN },
-    update: { role: MembershipRole.ADMIN }
-  });
-  console.log(JSON.stringify({ status: "admin_bootstrapped", email, organization: organization.slug, role: "ADMIN" }));
+
+  console.log(JSON.stringify({ status: "admin_bootstrapped", ...result, role: "ADMIN", sessionsRevoked: Boolean(existingUser?.passwordHash && forcePasswordReset) }));
 }
 
 main().catch(error => {
