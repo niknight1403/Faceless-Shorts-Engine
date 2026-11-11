@@ -32,9 +32,10 @@ After bootstrap, the mobile app can sign in through `POST /v1/auth/login`; the A
 The default `docker-compose.yml` runs PostgreSQL, Redis, the API, and the video worker as separate services. The API and worker share the persistent `media_data` volume, so completed MP4 assets can be served by the API.
 
 1. Copy `.env.production.example` to `.env` and replace every placeholder with unique random secrets. Keep the file local; never commit the populated `.env`. Set provider credentials only for routes you intend to enable.
-2. Start the stack with `docker compose up -d --build`.
-3. Confirm readiness with `curl http://127.0.0.1:4000/health/ready`.
-4. Create the first organization administrator with `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD`, and `pnpm admin:bootstrap` from a trusted one-off environment that has the same database URL.
-5. Put a TLS reverse proxy in front of the API and set the Android build variable `EXPO_PUBLIC_API_URL` to that public HTTPS origin.
+2. Run `pnpm preflight:production` before starting services. It blocks placeholder/reused secrets, invalid URLs, and configurations without a TTS route; warnings identify external-provider processing and local-template fallback. A successful preflight is a configuration check, not proof that upstream providers or a deployed service are reachable.
+3. Start the stack with `docker compose up -d --build`.
+4. Confirm readiness with `curl http://127.0.0.1:4000/health/ready`.
+5. Create the first organization administrator with `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD`, and `pnpm admin:bootstrap` from a trusted one-off environment that has the same database URL.
+6. Put a TLS reverse proxy in front of the API and set the Android build variable `EXPO_PUBLIC_API_URL` to that public HTTPS origin.
 
 The API binds to loopback by default; expose it publicly only behind a TLS reverse proxy and firewall. PostgreSQL and Redis are not published on host ports. The example credentials are placeholders, not production secrets. This Compose file provisions the application stack but does not provision a domain, TLS certificate, external object storage, or paid cloud services.
