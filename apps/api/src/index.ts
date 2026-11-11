@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { createSessionToken, hashSessionToken, SESSION_TTL_MS, verifyPassword } from "./auth.js";
+import { readJsonBody } from "./http-body.js";
 import { createReadStream } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -42,15 +43,7 @@ function assetDownloadUrl(asset: AssetRecord): string | null {
   return "/v1/assets/" + encodeURIComponent(asset.id) + "?expires=" + expires + "&signature=" + signature;
 }
 async function readBody<T = CreateJobBody>(req: import("node:http").IncomingMessage): Promise<T> {
-  let raw = "";
-  let byteLength = 0;
-  for await (const chunk of req) {
-    const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    byteLength += part.byteLength;
-    if (byteLength > 16_384) throw new Error("body_too_large");
-    raw += part.toString("utf8");
-  }
-  return JSON.parse(raw || "{}") as T;
+  return readJsonBody<T>(req);
 }
 type AuthenticatedSession = { id: string; userId: string; expiresAt: Date; user: { id: string; email: string; name: string | null; memberships: Array<{ organizationId: string; role: string; organization: { id: string; name: string; slug: string } }> } };
 async function authenticate(req: import("node:http").IncomingMessage): Promise<AuthenticatedSession | null> {
