@@ -1,5 +1,3 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 
 export interface VisualRequest { prompt: string; width?: number; height?: number }
 export interface VisualResult { provider: string; mimeType: string; extension: string; image: Buffer }
