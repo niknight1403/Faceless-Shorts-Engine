@@ -30,6 +30,7 @@ After bootstrap, the mobile app can sign in through `POST /v1/auth/login`; the A
 ## Self-hosted API and worker stack
 
 The default `docker-compose.yml` runs PostgreSQL, Redis, the API, and the video worker as separate services. The API and worker share the persistent `media_data` volume, so completed MP4 assets can be served by the API.
+Redis uses AOF persistence and `maxmemory-policy noeviction`, as required by BullMQ: queue keys must not be evicted under memory pressure. If Redis reaches its memory cap, writes fail visibly rather than silently discarding queued jobs; monitor Redis memory and size the instance accordingly.
 
 1. Copy `.env.production.example` to `.env` and replace every placeholder with unique random secrets. Keep the file local; never commit the populated `.env`. Set provider credentials only for routes you intend to enable.
 2. Run `pnpm preflight:production` before starting services. It blocks placeholder/reused secrets, invalid URLs, and configurations without a TTS route; warnings identify external-provider processing and local-template fallback. A successful preflight is a configuration check, not proof that upstream providers or a deployed service are reachable.
