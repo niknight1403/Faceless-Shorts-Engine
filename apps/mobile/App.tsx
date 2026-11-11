@@ -114,6 +114,23 @@ export default function App() {
 
   const refresh = async () => { if (token) await loadDashboard(token, organizations); };
 
+  // Keep active renders current without requiring the user to pull-to-refresh.
+  useEffect(() => {
+    const activeStatuses = new Set([
+      "QUEUED", "PLANNING", "GENERATING_SCRIPT", "GENERATING_VOICE",
+      "GENERATING_VISUALS", "RENDERING", "VALIDATING", "AWAITING_APPROVAL", "PUBLISHING"
+    ]);
+    const hasActiveJobs = projects.some(project =>
+      project.jobs.some(job => activeStatuses.has(job.status))
+    );
+    if (!token || !hasActiveJobs) return;
+
+    const timer = setInterval(() => {
+      void loadDashboard(token, organizations);
+    }, 12000);
+    return () => clearInterval(timer);
+  }, [token, projects, organizations, loadDashboard]);
+
   const createProject = async () => {
     const organization = organizations.find(org => ["OWNER", "ADMIN", "EDITOR"].includes(org.role));
     if (!token || !organization || projectName.trim().length < 2) {
