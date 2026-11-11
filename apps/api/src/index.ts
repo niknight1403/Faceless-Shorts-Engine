@@ -115,7 +115,7 @@ const server = createServer(async (req, res) => {
       await Promise.all([prisma.$queryRaw`SELECT 1`, connection.ping()]); json(res, 200, { status: "ready" }); return;
     }
     const isJobRoute = (req.method === "POST" && url.pathname === "/v1/video-jobs") ||
-      (req.method === "GET" && /^\\/v1\\/video-jobs\\/[a-zA-Z0-9_-]+$/.test(url.pathname));
+      (req.method === "GET" && url.pathname.startsWith("/v1/video-jobs/") && /^[a-zA-Z0-9_-]+$/.test(url.pathname.slice("/v1/video-jobs/".length)));
     const serviceAuthorized = isJobRoute && authorized(req);
     const jobSession = isJobRoute && !serviceAuthorized ? await authenticate(req) : null;
     if (isJobRoute && !serviceAuthorized && !jobSession) {
