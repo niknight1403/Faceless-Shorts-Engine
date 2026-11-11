@@ -5,7 +5,6 @@ type RouteState = { failures: number; latencyMs: number | null; cooldownUntil: n
 const env = (name: string) => process.env[name]?.trim() || undefined;
 const endpoint = (baseUrl: string) => baseUrl.replace(/\/+$/, "") + "/chat/completions";
 
-/** Free-only route registry. Paid models are rejected rather than used as fallbacks. */
 export function buildFreeLlmRoutes(): FreeLlmRoute[] {
   const routes: FreeLlmRoute[] = [];
   const ollamaModel = env("OLLAMA_MODEL");
@@ -33,10 +32,68 @@ export function buildFreeLlmRoutes(): FreeLlmRoute[] {
   return routes.sort((a, b) => a.priority - b.priority);
 }
 
+function allowedHubRouteUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (url.protocol === "https:") return true;
+    const host = url.hostname.toLowerCase();
+    return url.protocol === "http:" && (host === "localhost" || host === "::1" || host.endsWith(".local") || /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2[0-9]|3[01])\./.test(host));
+  } catch { return false; }
+}
+
 export class FreeRouteHunter {
   private readonly state = new Map<string, RouteState>();
+  private lastHubSync = 0;
+  private upstreamHubStatus: Record<string, unknown> | null = null;
   constructor(private readonly routes: FreeLlmRoute[], private readonly timeoutMs = 20_000, private readonly cooldownMs = 60_000) {
     for (const route of routes) this.state.set(route.id, { failures: 0, latencyMs: null, cooldownUntil: 0, remainingRequests: null, remainingTokens: null });
+  }
+  hubStatus(): Record<string, unknown> | null { return this.upstreamHubStatus; }
+  async refreshFromAgentforgeHub(fetchImpl: typeof fetch = fetch, force = false): Promise<void> {
+    const hub = env("AGENTFORGE_HUB_URL");
+    if (!hub) return;
+    if (!force && Date.now() - this.lastHubSync < 60_000) return;
+    this.lastHubSync = Date.now();
+    let hubUrl: URL;
+    try { hubUrl = new URL(hub); } catch { this.upstreamHubStatus = { configured: true, connected: false, error: "invalid_hub_url" }; return; }
+    if (hubUrl.protocol !== "https:" && !(hubUrl.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(hubUrl.hostname))) {
+      this.upstreamHubStatus = { configured: true, connected: false, error: "hub_must_use_https_or_localhost" }; return;
+    }
+    const headers = { accept: "application/json", ...(env("AGENTFORGE_HUB_TOKEN") ? { authorization: "Bearer " + env("AGENTFORGE_HUB_TOKEN") } : {}) };
+    try {
+      const base = hub.replace(/\/+$/, "");
+      const [routesResponse, hunterResponse] = await Promise.all([
+        fetchImpl(base + "/api/free-routes", { headers, signal: AbortSignal.timeout(5_000) }),
+        fetchImpl(base + "/api/free-routes/hunter", { headers, signal: AbortSignal.timeout(5_000) })
+      ]);
+      if (!routesResponse.ok) throw new Error("hub_routes_http_" + routesResponse.status);
+      const data = await routesResponse.json() as { routes?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+      const rows = Array.isArray(data) ? data : Array.isArray(data.routes) ? data.routes : [];
+      let imported = 0;
+      for (const row of rows) {
+        const free = row.is_free === 1 || row.is_free === true || row.isFree === true || row.free === true;
+        const enabled = row.enabled !== false && row.enabled !== 0 && row.available !== false && row.dead !== true;
+        const provider = String(row.provider ?? "").toLowerCase();
+        const keyEnv = String(row.key_env ?? row.keyEnv ?? "").trim();
+        const apiKey = keyEnv ? env(keyEnv) : undefined;
+        const baseUrl = String(row.base_url ?? row.baseUrl ?? "").trim();
+        const model = String(row.model ?? "").trim();
+        if (!free || !enabled || !baseUrl || !model || !allowedHubRouteUrl(baseUrl)) continue;
+        if (keyEnv && !apiKey) continue;
+        if (!keyEnv && !["ollama", "pollinations"].includes(provider)) continue;
+        const id = "agentforge-hub-" + String(row.id ?? provider + "-" + model).replace(/[^a-zA-Z0-9_-]/g, "-");
+        if (this.routes.some(route => route.id === id)) continue;
+        const priority = provider === "ollama" ? 2 : 10 + (Number(row.priority) || 20);
+        this.routes.push({ id, model, baseUrl, ...(apiKey ? { apiKey } : {}), priority, free: true });
+        this.state.set(id, { failures: 0, latencyMs: null, cooldownUntil: 0, remainingRequests: null, remainingTokens: null });
+        imported += 1;
+      }
+      let hunter: unknown = null;
+      if (hunterResponse.ok) hunter = await hunterResponse.json();
+      this.upstreamHubStatus = { configured: true, connected: true, routesReceived: rows.length, routesImported: imported, hunter };
+    } catch (error) {
+      this.upstreamHubStatus = { configured: true, connected: false, error: error instanceof Error ? error.message : "hub_unreachable" };
+    }
   }
   snapshot(): RouteSnapshot[] {
     const now = Date.now();
@@ -46,6 +103,7 @@ export class FreeRouteHunter {
     });
   }
   async generate(prompt: string): Promise<LlmRouteResult> {
+    await this.refreshFromAgentforgeHub();
     const now = Date.now();
     const candidates = this.routes.filter(route => route.free === true).filter(route => {
       const state = this.state.get(route.id)!;
@@ -78,8 +136,8 @@ export class FreeRouteHunter {
           throw new Error(route.id + "_http_" + response.status);
         }
         const payload = await response.json() as { choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }> };
-        const content = payload.choices?.[0]?.message?.content;
-        const text = typeof content === "string" ? content : Array.isArray(content) ? content.map(part => part.text ?? "").join("") : "";
+        const result = payload.choices?.[0]?.message?.content;
+        const text = typeof result === "string" ? result : Array.isArray(result) ? result.map(part => part.text ?? "").join("") : "";
         if (!text.trim()) throw new Error(route.id + "_empty_response");
         state.latencyMs = Date.now() - started; state.failures = 0; state.cooldownUntil = 0;
         return { provider: route.id, model: route.model, text, latencyMs: state.latencyMs };
