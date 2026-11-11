@@ -2,14 +2,14 @@
 
 ## Endpoints
 
-- `POST /v1/video-jobs`: creates a durable job and enqueues it in BullMQ. Requires `Authorization: Bearer <API_ACCESS_TOKEN>`.
-- `GET /v1/video-jobs/:id`: returns persisted job and asset metadata plus short-lived signed download URLs. Requires the same bearer token.
+- `POST /v1/video-jobs`: creates a durable job and enqueues it in BullMQ. Accepts an end-user session token or the internal `API_ACCESS_TOKEN`; user sessions require EDITOR, ADMIN, or OWNER membership in the project's organization.
+- `GET /v1/video-jobs/:id`: returns persisted job and asset metadata plus short-lived signed download URLs. Accepts an end-user session token (organization membership required) or the internal `API_ACCESS_TOKEN`.
 - `GET /v1/assets/:assetId?expires=...&signature=...`: streams an asset using a signed URL; supports byte-range requests for video/audio playback.
 - `GET /v1/providers`: reports the currently published free LLM, TTS, visual and Agentforge2 route status.
 - `GET /health/live`: process liveness.
 - `GET /health/ready`: checks PostgreSQL and Redis connectivity.
 
-Configure `API_ACCESS_TOKEN` with a long random server-to-server secret and `ASSET_SIGNING_SECRET` with a separate random secret of at least 32 characters. The API fails closed (503) for job routes if the bearer token is unset and does not issue asset URLs if the signing key is unset. Never embed `API_ACCESS_TOKEN` in a mobile binary or public frontend. The bearer token is currently a shared service credential, not end-user authentication or per-user authorization. End-user login, revocable sessions, and an organization-scoped ADMIN overview are documented in [AUTHENTICATION.md](./AUTHENTICATION.md). The video-job endpoints still use the shared service token and do not yet enforce end-user project ownership; expose them to a mobile app only through a trusted backend until that ownership layer is implemented.
+Configure `API_ACCESS_TOKEN` with a long random server-to-server secret and `ASSET_SIGNING_SECRET` with a separate random secret of at least 32 characters. The API fails closed (503) for job routes if the bearer token is unset and does not issue asset URLs if the signing key is unset. Never embed `API_ACCESS_TOKEN` in a mobile binary or public frontend. The bearer token is a shared server-to-server credential, not end-user authentication; never embed it in a mobile binary. End-user login, revocable sessions, organization membership checks, and the organization-scoped ADMIN overview are documented in [AUTHENTICATION.md](./AUTHENTICATION.md). End-user sessions can create jobs only in organizations where the user is EDITOR, ADMIN, or OWNER, and can read jobs only in organizations where they have membership. Service-token requests remain privileged internal requests.
 
 Signed asset URLs expire after 15 minutes. They are bearer links: anyone who obtains one can access that asset until expiry. Keep them private. The API does not return internal filesystem storage keys. Asset paths are resolved beneath `MEDIA_STORAGE_DIR`; traversal outside that directory is rejected. The endpoint supports HTTP byte ranges and sends `nosniff` and private/no-store headers.
 
