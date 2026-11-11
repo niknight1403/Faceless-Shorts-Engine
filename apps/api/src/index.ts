@@ -114,9 +114,12 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/health/ready") {
       await Promise.all([prisma.$queryRaw`SELECT 1`, connection.ping()]); json(res, 200, { status: "ready" }); return;
     }
-    if ((req.method === "POST" && url.pathname === "/v1/video-jobs") || (req.method === "GET" && /^\/v1\/video-jobs\/[a-zA-Z0-9_-]+$/.test(url.pathname))) {
-      if (!apiAccessToken) { json(res, 503, { error: "API_ACCESS_TOKEN_not_configured" }); return; }
-      if (!authorized(req)) { json(res, 401, { error: "unauthorized" }); return; }
+    const isJobRoute = (req.method === "POST" && url.pathname === "/v1/video-jobs") ||
+      (req.method === "GET" && /^\\/v1\\/video-jobs\\/[a-zA-Z0-9_-]+$/.test(url.pathname));
+    const serviceAuthorized = isJobRoute && authorized(req);
+    const jobSession = isJobRoute && !serviceAuthorized ? await authenticate(req) : null;
+    if (isJobRoute && !serviceAuthorized && !jobSession) {
+      json(res, apiAccessToken ? 401 : 503, { error: apiAccessToken ? "unauthorized" : "API_ACCESS_TOKEN_not_configured_or_session_required" }); return;
     }
     if (req.method === "POST" && url.pathname === "/v1/video-jobs") {
       const body = await readBody(req);
@@ -125,11 +128,20 @@ const server = createServer(async (req, res) => {
       if (!Number.isInteger(duration) || duration < 10 || duration > 180) { json(res, 400, { error: "targetDurationSeconds_must_be_10_to_180" }); return; }
       const platforms = body.targetPlatforms ?? ["youtube_shorts"];
       if (!Array.isArray(platforms) || !platforms.length || platforms.some(p => typeof p !== "string")) { json(res, 400, { error: "targetPlatforms_must_be_non_empty_strings" }); return; }
+      const project = await prisma.project.findUnique({ where: { id: body.projectId } });
+      if (!project) { json(res, 404, { error: "project_not_found" }); return; }
+      if (jobSession) {
+        const membership = jobSession.user.memberships.find(m => m.organizationId === project.organizationId);
+        if (!membership) { json(res, 404, { error: "project_not_found" }); return; }
+        if (!["OWNER", "ADMIN", "EDITOR"].includes(membership.role)) { json(res, 403, { error: "project_write_access_required" }); return; }
+      }
       if (body.idempotencyKey) {
         const existing = await prisma.videoJob.findUnique({ where: { idempotencyKey: body.idempotencyKey } });
-        if (existing) { json(res, 200, existing); return; }
+        if (existing) {
+          if (existing.projectId !== project.id) { json(res, 409, { error: "idempotency_key_conflict" }); return; }
+          json(res, 200, existing); return;
+        }
       }
-      if (!await prisma.project.findUnique({ where: { id: body.projectId } })) { json(res, 404, { error: "project_not_found" }); return; }
       const job = await prisma.videoJob.create({ data: {
         projectId: body.projectId, topic: body.topic.trim(), language: body.language ?? "de",
         targetDurationSeconds: duration, targetPlatforms: platforms, status: JobStatus.QUEUED,
@@ -147,6 +159,11 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && jobMatch) {
       const job = await prisma.videoJob.findUnique({ where: { id: jobMatch[1] }, include: { assets: true } });
       if (!job) { json(res, 404, { error: "video_job_not_found" }); return; }
+      if (jobSession) {
+        const project = await prisma.project.findUnique({ where: { id: job.projectId }, select: { organizationId: true } });
+        const membership = project ? jobSession.user.memberships.find(m => m.organizationId === project.organizationId) : null;
+        if (!membership) { json(res, 404, { error: "video_job_not_found" }); return; }
+      }
       json(res, 200, { ...job, assets: job.assets.map(asset => { const { storageKey, ...publicAsset } = asset; void storageKey; return { ...publicAsset, sizeBytes: asset.sizeBytes?.toString() ?? null, downloadUrl: assetDownloadUrl(asset) }; }) }); return;
     }
     const assetMatch = url.pathname.match(/^\/v1\/assets\/([a-zA-Z0-9_-]+)$/);
