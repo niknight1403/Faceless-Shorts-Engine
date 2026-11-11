@@ -1,6 +1,6 @@
 import { PrismaClient, JobStatus } from "@prisma/client";
 import { Worker } from "bullmq";
-import Redis from "ioredis";
+import { Redis } from "ioredis";
 const prisma = new PrismaClient();
 const connection = new Redis(process.env.REDIS_URL ?? "redis://127.0.0.1:6379", { maxRetriesPerRequest: null });
 const worker = new Worker("video-generation", async task => {
@@ -8,7 +8,7 @@ const worker = new Worker("video-generation", async task => {
   if (!videoJobId) throw new Error("videoJobId_missing");
   const job = await prisma.videoJob.findUnique({ where: { id: videoJobId } });
   if (!job) throw new Error(`video_job_not_found:${videoJobId}`);
-  if ([JobStatus.CANCELLED, JobStatus.COMPLETED].includes(job.status)) return;
+  if (job.status === JobStatus.CANCELLED || job.status === JobStatus.COMPLETED) return;
   await prisma.videoJob.update({ where: { id: videoJobId }, data: { status: JobStatus.PLANNING, progress: 5, errorCode: null, errorMessage: null } });
   await prisma.videoJob.update({ where: { id: videoJobId }, data: {
     status: JobStatus.FAILED, progress: 5, errorCode: "GENERATION_PROVIDER_NOT_CONFIGURED",
