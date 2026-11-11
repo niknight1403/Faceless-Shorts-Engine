@@ -26,6 +26,10 @@ const worker = new Worker("video-generation", async task => {
 
   const jobDirectory = join(mediaRoot, videoJobId);
   await mkdir(jobDirectory, { recursive: true });
+  // A BullMQ retry may resume after assets were persisted but before the job
+  // reached COMPLETED. Clear prior DB asset records so deterministic storage
+  // keys can be safely recreated instead of failing on unique constraints.
+  await prisma.asset.deleteMany({ where: { jobId: videoJobId } });
   const fail = async (code: string, error: unknown, progress: number) => {
     const message = error instanceof Error ? error.message : String(error);
     await prisma.videoJob.update({ where: { id: videoJobId }, data: {
