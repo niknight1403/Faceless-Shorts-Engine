@@ -1,0 +1,58 @@
+name: Admin bootstrap
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: faceless-admin-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    name: Create or promote organization admin
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Validate required repository secrets
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.FACELESS_DATABASE_URL }}
+          BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.FACELESS_ADMIN_EMAIL }}
+          BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.FACELESS_ADMIN_PASSWORD }}
+        run: |
+          test -n "$DATABASE_URL" || { echo "::error::Add repository secret FACELESS_DATABASE_URL (PostgreSQL connection string)."; exit 1; }
+          test -n "$BOOTSTRAP_ADMIN_EMAIL" || { echo "::error::Add repository secret FACELESS_ADMIN_EMAIL."; exit 1; }
+          test -n "$BOOTSTRAP_ADMIN_PASSWORD" || { echo "::error::Add repository secret FACELESS_ADMIN_PASSWORD."; exit 1; }
+          case "$DATABASE_URL" in
+            postgresql://*|postgres://*) ;;
+            *) echo "::error::FACELESS_DATABASE_URL must be a PostgreSQL URL."; exit 1 ;;
+          esac
+          test "${#BOOTSTRAP_ADMIN_PASSWORD}" -ge 14 || { echo "::error::FACELESS_ADMIN_PASSWORD must contain at least 14 characters."; exit 1; }
+
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Bootstrap administrator
+        env:
+          DATABASE_URL: ${{ secrets.FACELESS_DATABASE_URL }}
+          BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.FACELESS_ADMIN_EMAIL }}
+          BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.FACELESS_ADMIN_PASSWORD }}
+          BOOTSTRAP_ADMIN_ORGANIZATION: Faceless Shorts
+        run: pnpm admin:bootstrap

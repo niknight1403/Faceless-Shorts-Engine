@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+  // Container images based on node:*-slim ship no openssl binary, so Prisma detects
+  // debian-openssl-1.1.x while the runtime needs debian-openssl-3.0.x. Ship both engines.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum JobStatus {
+  QUEUED
+  PLANNING
+  GENERATING_SCRIPT
+  GENERATING_VOICE
+  GENERATING_VISUALS
+  RENDERING
+  VALIDATING
+  AWAITING_APPROVAL
+  PUBLISHING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AssetKind {
+  AUDIO
+  IMAGE
+  VIDEO
+  CAPTION
+  THUMBNAIL
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String?
+  passwordHash String?
+  memberships  Membership[]
+  sessions     Session[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, expiresAt])
+}
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  memberships Membership[]
+  projects    Project[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Membership {
+  id             String         @id @default(cuid())
+  userId         String
+  organizationId String
+  role           MembershipRole @default(EDITOR)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime       @default(now())
+  @@unique([userId, organizationId])
+  @@index([organizationId, role])
+}
+
+model Project {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  jobs           VideoJob[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  @@index([organizationId, updatedAt])
+}
+
+model VideoJob {
+  id                    String    @id @default(cuid())
+  projectId             String
+  topic                 String
+  language              String    @default("de")
+  targetDurationSeconds Int       @default(45)
+  targetPlatforms       String[]
+  status                JobStatus @default(QUEUED)
+  progress              Int       @default(0)
+  idempotencyKey        String?   @unique
+  errorCode             String?
+  errorMessage          String?
+  project               Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assets                Asset[]
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  @@index([status, createdAt])
+  @@index([projectId, createdAt])
+}
+
+model Asset {
+  id          String    @id @default(cuid())
+  jobId       String
+  kind        AssetKind
+  storageKey  String    @unique
+  mimeType    String
+  sizeBytes   BigInt?
+  checksum    String?
+  durationMs  Int?
+  metadata    Json?
+  job         VideoJob  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  @@index([jobId, kind])
+}

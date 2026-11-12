@@ -1,0 +1,13 @@
+.git
+.github
+**/node_modules
+**/.expo
+**/android
+**/ios
+**/dist
+**/coverage
+.env
+.env.*
+!.env.example
+data
+*.log
