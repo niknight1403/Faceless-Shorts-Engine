@@ -15,14 +15,13 @@ jobs:
     name: Create or promote organization admin
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      DATABASE_URL: ${{ secrets.FACELESS_DATABASE_URL }}
-      BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.FACELESS_ADMIN_EMAIL }}
-      BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.FACELESS_ADMIN_PASSWORD }}
-      BOOTSTRAP_ADMIN_ORGANIZATION: Faceless Shorts
     steps:
       - name: Validate required repository secrets
         shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.FACELESS_DATABASE_URL }}
+          BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.FACELESS_ADMIN_EMAIL }}
+          BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.FACELESS_ADMIN_PASSWORD }}
         run: |
           test -n "$DATABASE_URL" || { echo "::error::Add repository secret FACELESS_DATABASE_URL (PostgreSQL connection string)."; exit 1; }
           test -n "$BOOTSTRAP_ADMIN_EMAIL" || { echo "::error::Add repository secret FACELESS_ADMIN_EMAIL."; exit 1; }
@@ -51,4 +50,9 @@ jobs:
         run: pnpm db:generate
 
       - name: Bootstrap administrator
+        env:
+          DATABASE_URL: ${{ secrets.FACELESS_DATABASE_URL }}
+          BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.FACELESS_ADMIN_EMAIL }}
+          BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.FACELESS_ADMIN_PASSWORD }}
+          BOOTSTRAP_ADMIN_ORGANIZATION: Faceless Shorts
         run: pnpm admin:bootstrap
