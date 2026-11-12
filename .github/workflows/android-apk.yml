@@ -52,6 +52,7 @@ jobs:
           fi
           ./gradlew --no-daemon --console=plain --stacktrace --max-workers=2 assembleRelease
       - name: Install and launch APK on Android emulator
+        timeout-minutes: 15
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -61,6 +62,12 @@ jobs:
           disable-animations: true
           script: |
             APK="app/build/outputs/apk/release/app-release.apk"
+            adb wait-for-device
+            for attempt in $(seq 1 60); do
+              if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; then break; fi
+              sleep 2
+            done
+            test "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1"
             adb install "$APK"
             adb shell monkey -p com.facelessshorts.engine 1
             sleep 10
