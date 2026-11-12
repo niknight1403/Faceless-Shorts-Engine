@@ -1,5 +1,8 @@
 generator client {
   provider = "prisma-client-js"
+  // Container images based on node:*-slim ship no openssl binary, so Prisma detects
+  // debian-openssl-1.1.x while the runtime needs debian-openssl-3.0.x. Ship both engines.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {

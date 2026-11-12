@@ -32,6 +32,21 @@ if (migrationExit !== 0) {
   process.exit(Number(migrationExit));
 }
 
+if (process.env.BOOTSTRAP_ADMIN_EMAIL && process.env.BOOTSTRAP_ADMIN_PASSWORD) {
+  // First-run administrator creation for hosts without shell access. Failure is not fatal:
+  // the script refuses to overwrite an existing administrator and that must not stop the app.
+  const bootstrap = spawn("pnpm", ["admin:bootstrap"], { stdio: "inherit", env: process.env });
+  const bootstrapExit = await new Promise((resolve, reject) => {
+    bootstrap.once("error", reject);
+    bootstrap.once("exit", code => resolve(code ?? 1));
+  });
+  if (bootstrapExit === 0) {
+    console.log("Administrator bootstrapped from environment variables.");
+  } else {
+    console.warn("Administrator bootstrap exited with code " + bootstrapExit + "; continuing with the existing accounts.");
+  }
+}
+
 const children = [
   spawn(process.execPath, ["apps/api/dist/index.js"], { stdio: "inherit", env: process.env }),
   spawn(process.execPath, ["apps/workers/dist/index.js"], { stdio: "inherit", env: process.env })
