@@ -29,6 +29,13 @@ pnpm admin:bootstrap
 
 Use a newly generated password (at least 14 characters); do not reuse a password that has been pasted into chat, source code, shell history, or issue trackers. The script stores a salted scrypt hash, creates the default `Faceless Shorts` organization if needed, and assigns the account the organization-scoped `ADMIN` role. It never prints the password or hash.
 
+For a remote one-time bootstrap, add these **repository Actions secrets**:
+- `FACELESS_DATABASE_URL`: PostgreSQL connection string for the target database
+- `FACELESS_ADMIN_EMAIL`: administrator email address
+- `FACELESS_ADMIN_PASSWORD`: new random password with at least 14 characters
+
+Then run **Actions → Admin bootstrap → Run workflow**. The workflow maps the database secret to Prisma's `DATABASE_URL`, validates that all three secrets exist, and runs the same bootstrap command. It does not print secret values. The operation is intentionally manual; it will not reset an existing password unless the trusted bootstrap script is explicitly run with its reset flag.
+
 After bootstrap, the mobile app can sign in through `POST /v1/auth/login`; the API issues a short-lived session token and stores only its hash. The app keeps the token in Android SecureStore. Project and video-job routes accept this user session and enforce organization membership and write roles. `API_ACCESS_TOKEN` remains an optional server-to-server credential for trusted integrations; never put it in a mobile app.
 
 ## Self-hosted API and worker stack
