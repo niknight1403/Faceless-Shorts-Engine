@@ -4,7 +4,7 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import { createSrt, renderVideo } from "./video-renderer.js";
+import { createSrt, renderVideo, runRendererProcess } from "./video-renderer.js";
 
 function run(binary: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -67,4 +67,19 @@ test("FFmpeg renderer produces a probeable vertical MP4 from image and audio ass
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+
+test("renderer process is killed when its execution deadline expires", async () => {
+  await assert.rejects(
+    () => runRendererProcess(process.execPath, ["-e", "setInterval(() => {}, 1000)"], undefined, 50),
+    /ffmpeg_timeout/,
+  );
+});
+
+test("renderer process bounds captured stderr on failure", async () => {
+  await assert.rejects(
+    () => runRendererProcess(process.execPath, ["-e", "process.stderr.write('x'.repeat(5000)); process.exit(2)"], undefined, 2_000),
+    (error: unknown) => error instanceof Error && error.message.startsWith("ffmpeg_exit_2:") && error.message.length <= 1_220,
+  );
 });
