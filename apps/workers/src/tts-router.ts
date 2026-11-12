@@ -50,7 +50,7 @@ function createRoutes(): TtsRoute[] {
     });
     if (!response.ok) throw new Error("openrouter_tts_http_" + response.status);
     const mimeType = response.headers.get("content-type") ?? "audio/wav";
-    return { provider: "openrouter-free-tts", mimeType, extension: mimeType.includes("mpeg") ? "mp3" : "wav", audio: Buffer.from(await response.arrayBuffer()) };
+    return { provider: "openrouter-free-tts", mimeType, extension: mimeType.includes("mpeg") ? "mp3" : "wav", audio: await readBoundedResponse(response, 25 * 1024 * 1024, "audio_payload") };
   }});
   if (env("TTS_AI_ENABLED") !== "false") routes.push({ id: "tts-ai-free", async synthesize(text, language) {
     if (text.length > 500) throw new Error("tts_ai_anonymous_limit_500_chars");
