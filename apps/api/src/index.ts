@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { createSessionToken, hashSessionToken, SESSION_TTL_MS, verifyPassword } from "./auth.js";
 import { readJsonBody } from "./http-body.js";
+import { parseByteRange } from "./byte-range.js";
 import { createReadStream } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -264,16 +265,12 @@ const server = createServer(async (req, res) => {
       } catch { json(res, 404, { error: "asset_file_missing" }); return; }
       if (!fileInfo.isFile()) { json(res, 404, { error: "asset_file_missing" }); return; }
       const range = req.headers.range;
-      const rangeMatch = range?.match(/^bytes=(\d*)-(\d*)$/);
       let start = 0, end = fileInfo.size - 1, status = 200;
-      if (range && !rangeMatch) { res.writeHead(416, { "content-range": "bytes */" + fileInfo.size }); res.end(); return; }
-      if (rangeMatch) {
-        start = rangeMatch[1] ? Number(rangeMatch[1]) : Math.max(0, fileInfo.size - Number(rangeMatch[2] || 0));
-        end = rangeMatch[2] ? Number(rangeMatch[2]) : end;
-        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || start >= fileInfo.size) {
-          res.writeHead(416, { "content-range": "bytes */" + fileInfo.size }); res.end(); return;
-        }
-        end = Math.min(end, fileInfo.size - 1); status = 206;
+      if (range) {
+        const parsedRange = parseByteRange(range, fileInfo.size);
+        if (!parsedRange) { res.writeHead(416, { "content-range": "bytes */" + fileInfo.size }); res.end(); return; }
+        ({ start, end } = parsedRange);
+        status = 206;
       }
       const headers: Record<string, string | number> = {
         "content-type": asset.mimeType, "content-length": end - start + 1,
