@@ -92,6 +92,8 @@ export default function App() {
   const [error, setError] = useState("");
   const [apiDraft, setApiDraft] = useState(BUILD_API_URL);
   const [editingApi, setEditingApi] = useState(!BUILD_API_URL);
+  const [checkingBackend, setCheckingBackend] = useState(false);
+  const [backendStatus, setBackendStatus] = useState("");
 
   const loadDashboard = useCallback(async (sessionToken: string, orgs: Organization[]) => {
     setLoading(true); setError("");
@@ -151,6 +153,30 @@ export default function App() {
     setError("");
     setEditingApi(false);
     await SecureStore.setItemAsync("faceless.api", next).catch(() => undefined);
+    setBackendStatus("Adresse lokal gespeichert. Verbindung noch nicht geprüft.");
+  };
+
+  const checkBackend = async () => {
+    let next = "";
+    try { next = normalizeApiUrl(apiDraft || API_URL); }
+    catch (e) { setError(e instanceof Error ? e.message : "Backend-Adresse ist ungültig."); return; }
+    if (!next) { setError("Bitte zuerst eine Backend-Adresse eingeben."); return; }
+    setCheckingBackend(true); setBackendStatus(""); setError("");
+    try {
+      const response = await fetch(next + "/health/ready", { method: "GET", headers: { accept: "application/json" } });
+      const body = await response.json().catch(() => ({})) as { status?: string; error?: string };
+      if (!response.ok || body.status !== "ready") {
+        throw new Error(body.error || "Backend ist nicht bereit (HTTP " + response.status + ").");
+      }
+      API_URL = next;
+      setApiDraft(next);
+      setEditingApi(false);
+      await SecureStore.setItemAsync("faceless.api", next);
+      setBackendStatus("Backend erreichbar: API, Datenbank und Redis sind bereit.");
+    } catch (e) {
+      setBackendStatus("");
+      setError(e instanceof Error ? e.message : "Backend-Verbindung fehlgeschlagen.");
+    } finally { setCheckingBackend(false); }
   };
 
   const signIn = async () => {
@@ -264,6 +290,10 @@ export default function App() {
                 <Text style={styles.hint}>Backend: {API_URL || "nicht konfiguriert"} · Server ändern · Sitzung wird verschlüsselt auf diesem Gerät gespeichert.</Text>
               </Pressable>
             )}
+            <Pressable style={[styles.ghostButton, checkingBackend && styles.disabled]} onPress={checkBackend} disabled={checkingBackend}>
+              {checkingBackend ? <ActivityIndicator color="#78E2C0" /> : <Text style={styles.ghostText}>Backend-Verbindung prüfen</Text>}
+            </Pressable>
+            {!!backendStatus && <Text style={styles.hint}>{backendStatus}</Text>}
           </View>
         </View>
       ) : (
