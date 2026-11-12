@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { deflateSync } from "node:zlib";
 
-const PORT = Number(process.env.MOCK_PROVIDER_PORT ?? 4010);
+const PORT = Number(process.env.MOCK_PROVIDER_PORT ?? process.env.MOCK_MEDIA_PORT ?? 4010);
 const WIDTH = 360;
 const HEIGHT = 640;
 
