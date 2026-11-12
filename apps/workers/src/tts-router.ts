@@ -7,9 +7,30 @@ function runPiper(binary: string, model: string, output: string, text: string): 
   return new Promise((resolve, reject) => {
     const child = spawn(binary, ["--model", model, "--output_file", output], { stdio: ["pipe", "ignore", "pipe"] });
     let stderr = "";
-    child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
-    child.on("error", reject);
-    child.on("close", code => code === 0 ? resolve() : reject(new Error("piper_exit_" + code + ":" + stderr.slice(0, 500))));
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill("SIGKILL");
+      reject(new Error("piper_timeout"));
+    }, 90_000);
+    child.stderr.setEncoding("utf8").on("data", chunk => {
+      stderr = (stderr + chunk).slice(-500);
+    });
+    child.on("error", error => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on("close", code => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (code === 0) resolve();
+      else reject(new Error("piper_exit_" + code + ":" + stderr));
+    });
+    child.stdin.on("error", () => undefined);
     child.stdin.end(text);
   });
 }
