@@ -1,0 +1,35 @@
+name: Admin bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      organization:
+        description: Organization name for the administrator
+        required: false
+        default: Faceless Shorts
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Create or promote the administrator
+        env:
+          DATABASE_URL: ${{ secrets.FACELESS_DATABASE_URL }}
+          BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.FACELESS_ADMIN_EMAIL }}
+          BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.FACELESS_ADMIN_PASSWORD }}
+          BOOTSTRAP_ADMIN_ORGANIZATION: ${{ inputs.organization }}
+        run: |
+          test -n "$DATABASE_URL" || { echo "::error::FACELESS_DATABASE_URL secret is missing"; exit 1; }
+          pnpm admin:bootstrap
