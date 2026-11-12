@@ -77,6 +77,6 @@ export async function renderVideo(scenes: RenderScene[], options: RenderOptions)
     const listPath = join(directory, "concat.txt");
     await writeFile(listPath, segmentPaths.map(path => "file '" + path.replace(/'/g, "'\\''") + "'").join("\n"));
     await mkdir(join(options.outputPath, ".."), { recursive: true });
-    await run(options.ffmpegPath ?? "ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", "-movflags", "+faststart", options.outputPath]);
+    await runRendererProcess(options.ffmpegPath ?? "ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", "-movflags", "+faststart", options.outputPath]);
   } finally { await rm(directory, { recursive: true, force: true }); }
 }
