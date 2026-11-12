@@ -4,13 +4,36 @@ import { join } from "node:path";
 
 export interface RenderScene { imagePath: string; audioPath: string; durationMs: number; narration: string }
 export interface RenderOptions { outputPath: string; width?: number; height?: number; fps?: number; ffmpegPath?: string }
+const FFMPEG_TIMEOUT_MS = 10 * 60_000;
+const MAX_FFMPEG_STDERR_CHARS = 1_200;
+
 function run(binary: string, args: string[], cwd?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, { cwd, stdio: ["ignore", "ignore", "pipe"] });
     let stderr = "";
-    child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
-    child.on("error", reject);
-    child.on("close", code => code === 0 ? resolve() : reject(new Error("ffmpeg_exit_" + code + ":" + stderr.slice(-1200))));
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill("SIGKILL");
+      reject(new Error("ffmpeg_timeout"));
+    }, FFMPEG_TIMEOUT_MS);
+    child.stderr.setEncoding("utf8").on("data", chunk => {
+      stderr = (stderr + chunk).slice(-MAX_FFMPEG_STDERR_CHARS);
+    });
+    child.on("error", error => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on("close", code => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (code === 0) resolve();
+      else reject(new Error("ffmpeg_exit_" + code + ":" + stderr));
+    });
   });
 }
 function srtTime(ms: number): string {
