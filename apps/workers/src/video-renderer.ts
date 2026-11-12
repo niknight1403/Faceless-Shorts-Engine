@@ -7,7 +7,7 @@ export interface RenderOptions { outputPath: string; width?: number; height?: nu
 const FFMPEG_TIMEOUT_MS = 10 * 60_000;
 const MAX_FFMPEG_STDERR_CHARS = 1_200;
 
-function run(binary: string, args: string[], cwd?: string): Promise<void> {
+export function runRendererProcess(binary: string, args: string[], cwd?: string, timeoutMs = FFMPEG_TIMEOUT_MS): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, { cwd, stdio: ["ignore", "ignore", "pipe"] });
     let stderr = "";
@@ -17,7 +17,7 @@ function run(binary: string, args: string[], cwd?: string): Promise<void> {
       settled = true;
       child.kill("SIGKILL");
       reject(new Error("ffmpeg_timeout"));
-    }, FFMPEG_TIMEOUT_MS);
+    }, timeoutMs);
     child.stderr.setEncoding("utf8").on("data", chunk => {
       stderr = (stderr + chunk).slice(-MAX_FFMPEG_STDERR_CHARS);
     });
@@ -66,7 +66,7 @@ export async function renderVideo(scenes: RenderScene[], options: RenderOptions)
       const duration = Math.max(1, scene.durationMs / 1000);
       const subtitleName = "scene-" + String(index).padStart(3, "0") + ".srt";
       await writeFile(join(directory, subtitleName), createSrt([scene]), "utf8");
-      await run(options.ffmpegPath ?? "ffmpeg", [
+      await runRendererProcess(options.ffmpegPath ?? "ffmpeg", [
         "-y", "-loop", "1", "-framerate", String(fps), "-i", scene.imagePath, "-i", scene.audioPath,
         "-vf", "subtitles=" + subtitleName + ",scale=" + width + ":" + height + ":force_original_aspect_ratio=increase,crop=" + width + ":" + height + ",setsar=1",
         "-r", String(fps), "-t", String(duration), "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
