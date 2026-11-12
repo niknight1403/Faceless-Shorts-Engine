@@ -1,6 +1,6 @@
 import { readBoundedResponse } from "./http-response.js";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 function runPiper(binary: string, model: string, output: string, text: string): Promise<void> {
@@ -16,6 +16,7 @@ function runPiper(binary: string, model: string, output: string, text: string): 
 export interface TtsResult { provider: string; mimeType: string; extension: string; audio: Buffer }
 export interface TtsRoute { id: string; synthesize(text: string, language: string): Promise<TtsResult> }
 const env = (name: string) => process.env[name]?.trim() || undefined;
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 let lastTtsAiRequestAt = 0;
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -27,6 +28,8 @@ function createRoutes(): TtsRoute[] {
     const output = join(dir, "speech.wav");
     try {
       await runPiper(env("PIPER_BIN") ?? "piper", piperModel, output, text);
+      const outputInfo = await stat(output);
+      if (outputInfo.size > MAX_AUDIO_BYTES) throw new Error("audio_payload_too_large");
       return { provider: "piper-local", mimeType: "audio/wav", extension: "wav", audio: await readFile(output) };
     } finally { await rm(dir, { recursive: true, force: true }); }
   }});
@@ -38,7 +41,7 @@ function createRoutes(): TtsRoute[] {
       signal: AbortSignal.timeout(90_000)
     });
     if (!response.ok) throw new Error("kokoro_http_" + response.status);
-    return { provider: "kokoro-local", mimeType: response.headers.get("content-type") ?? "audio/wav", extension: "wav", audio: await readBoundedResponse(response, 26214400, "audio_payload") };
+    return { provider: "kokoro-local", mimeType: response.headers.get("content-type") ?? "audio/wav", extension: "wav", audio: await readBoundedResponse(response, MAX_AUDIO_BYTES, "audio_payload") };
   }});
   const openRouterKey = env("OPENROUTER_API_KEY"), openRouterTtsModel = env("OPENROUTER_TTS_MODEL");
   if (openRouterKey && openRouterTtsModel?.endsWith(":free") && env("OPENROUTER_TTS_VOICE")) routes.push({ id: "openrouter-free-tts", async synthesize(text) {
@@ -50,7 +53,7 @@ function createRoutes(): TtsRoute[] {
     });
     if (!response.ok) throw new Error("openrouter_tts_http_" + response.status);
     const mimeType = response.headers.get("content-type") ?? "audio/wav";
-    return { provider: "openrouter-free-tts", mimeType, extension: mimeType.includes("mpeg") ? "mp3" : "wav", audio: await readBoundedResponse(response, 25 * 1024 * 1024, "audio_payload") };
+    return { provider: "openrouter-free-tts", mimeType, extension: mimeType.includes("mpeg") ? "mp3" : "wav", audio: await readBoundedResponse(response, MAX_AUDIO_BYTES, "audio_payload") };
   }});
   if (env("TTS_AI_ENABLED") !== "false") routes.push({ id: "tts-ai-free", async synthesize(text, language) {
     if (text.length > 500) throw new Error("tts_ai_anonymous_limit_500_chars");
@@ -63,7 +66,7 @@ function createRoutes(): TtsRoute[] {
       signal: AbortSignal.timeout(90_000)
     });
     if (!response.ok) throw new Error("tts_ai_http_" + response.status);
-    return { provider: "tts-ai-free", mimeType: response.headers.get("content-type") ?? "audio/wav", extension: "wav", audio: Buffer.from(await response.arrayBuffer()) };
+    return { provider: "tts-ai-free", mimeType: response.headers.get("content-type") ?? "audio/wav", extension: "wav", audio: await readBoundedResponse(response, MAX_AUDIO_BYTES, "audio_payload") };
   }});
   return routes;
 }
@@ -78,7 +81,7 @@ export class TtsRouter {
       try {
         const result = await route.synthesize(text, language);
         if (!result.audio.length) throw new Error("empty_audio");
-        if (result.audio.byteLength > 25 * 1024 * 1024) throw new Error("audio_payload_too_large");
+        if (result.audio.byteLength > MAX_AUDIO_BYTES) throw new Error("audio_payload_too_large");
         if (!/^audio\/[a-z0-9.+-]+$/i.test(result.mimeType.split(";")[0]!.trim())) {
           throw new Error("unsupported_audio_content_type:" + result.mimeType.slice(0, 100));
         }
