@@ -21,6 +21,35 @@ export interface VisualProvider {
   generate(input: VisualRequest): Promise<VisualResult>;
 }
 
+/**
+ * The anonymous image route allows one image every 45 seconds per IP and answers 402 FREE_LIMIT
+ * otherwise, stating the remaining wait ("Retry after 36s"). Scene sets are therefore queued and the
+ * stated wait is respected, so a render finishes with real images instead of skipping scenes.
+ */
+const DEFAULT_HOSTED_INTERVAL_MS = 46_000;
+let hostedRequestChain: Promise<unknown> = Promise.resolve();
+let nextHostedRequestAt = 0;
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function serializeHostedRequest<T>(task: () => Promise<T>): Promise<T> {
+  const run = hostedRequestChain.then(async () => {
+    const waitMs = nextHostedRequestAt - Date.now();
+    if (waitMs > 0) await delay(waitMs);
+    nextHostedRequestAt = Date.now() + DEFAULT_HOSTED_INTERVAL_MS;
+    return task();
+  });
+  hostedRequestChain = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+/** Reads the server-side limit ("Retry after 36s") so the next attempt is neither early nor wasteful. */
+function retryAfterMs(body: string, fallbackMs: number): number {
+  const match = /retry after\D{0,10}(\d{1,4})\s*s/i.exec(body);
+  if (match) return Math.min(600_000, (Number(match[1]) + 3) * 1_000);
+  return fallbackMs;
+}
+
 /** Anonymous Pollinations image route. No API key or paid model is used. */
 export class PollinationsVisualProvider implements VisualProvider {
   readonly id = "pollinations-free";
@@ -32,17 +61,24 @@ export class PollinationsVisualProvider implements VisualProvider {
    * generated in parallel, so retry with a widening delay before the router falls back.
    */
   private async requestWithBackoff(url: string): Promise<Response> {
-    const delays = [0, 3_000, 8_000];
+    const fallbackDelays = [0, 20_000, 50_000, 90_000];
     let last: Response | undefined;
-    for (const waitMs of delays) {
-      if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    for (const fallbackMs of fallbackDelays) {
+      if (fallbackMs) await delay(fallbackMs);
       const response = await this.request(url, {
         signal: AbortSignal.timeout(120_000),
         headers: { accept: "image/jpeg,image/png,image/webp" },
       });
       last = response;
-      if (response.ok || (response.status !== 402 && response.status !== 429 && response.status < 500)) {
-        return response;
+      if (response.ok) return response;
+      const retryable = response.status === 402 || response.status === 429 || response.status >= 500;
+      if (!retryable) return response;
+      // A quota answer carries the exact wait; honour it before the next attempt instead of guessing.
+      const body = await response.clone().text().catch(() => "");
+      const waitMs = retryAfterMs(body, 0);
+      if (waitMs > 0) {
+        nextHostedRequestAt = Date.now() + waitMs;
+        await delay(waitMs);
       }
     }
     return last!;
@@ -72,8 +108,8 @@ export class PollinationsVisualProvider implements VisualProvider {
       width +
       "&height=" +
       height +
-      "&nologo=true&safe=true";
-    const response = await this.requestWithBackoff(url);
+      "&model=flux&nologo=true&safe=true&referrer=faceless-shorts-engine";
+    const response = await serializeHostedRequest(() => this.requestWithBackoff(url));
     if (!response.ok) throw new Error("pollinations_http_" + response.status);
 
     const mimeType = (response.headers.get("content-type") ?? "")
