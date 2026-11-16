@@ -81,13 +81,45 @@ function createRoutes(): TtsRoute[] {
     const waitMs = Math.max(0, 6_100 - (Date.now() - lastTtsAiRequestAt));
     if (waitMs) await delay(waitMs);
     lastTtsAiRequestAt = Date.now();
-    const response = await fetch("https://api.tts.ai/v1/tts/", {
+    // The free endpoint no longer streams audio: it queues a job and returns a uuid that has to be
+    // polled under /v1/speech/results until the finished file shows up on the CDN.
+    const submit = await fetch("https://api.tts.ai/v1/tts/", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ model: "piper", text, voice: env("TTS_AI_VOICE") ?? "de_DE-thorsten-medium", language, format: "wav" }),
       signal: AbortSignal.timeout(90_000)
     });
-    if (!response.ok) throw new Error("tts_ai_http_" + response.status);
-    return { provider: "tts-ai-free", mimeType: response.headers.get("content-type") ?? "audio/wav", extension: "wav", audio: await readBoundedResponse(response, MAX_AUDIO_BYTES, "audio_payload") };
+    if (!submit.ok) throw new Error("tts_ai_http_" + submit.status);
+    const queued = await submit.json().catch(() => null) as { uuid?: unknown } | null;
+    const uuid = typeof queued?.uuid === "string" ? queued.uuid : "";
+    if (!uuid) throw new Error("tts_ai_missing_job_uuid");
+    const deadline = Date.now() + 120_000;
+    let resultUrl = "";
+    while (!resultUrl && Date.now() < deadline) {
+      await delay(2_000);
+      const poll = await fetch("https://api.tts.ai/v1/speech/results/?uuid=" + encodeURIComponent(uuid), {
+        signal: AbortSignal.timeout(30_000)
+      });
+      if (!poll.ok) throw new Error("tts_ai_poll_http_" + poll.status);
+      const state = await poll.json().catch(() => null) as { status?: unknown; result_url?: unknown; url?: unknown } | null;
+      const status = typeof state?.status === "string" ? state.status : "";
+      if (status === "failed" || status === "error") throw new Error("tts_ai_job_failed");
+      if (status === "completed") {
+        const candidate = typeof state?.result_url === "string" ? state.result_url : (typeof state?.url === "string" ? state.url : "");
+        if (!candidate) throw new Error("tts_ai_missing_result_url");
+        resultUrl = candidate;
+      }
+    }
+    if (!resultUrl) throw new Error("tts_ai_poll_timeout");
+    const audio = await fetch(resultUrl, { signal: AbortSignal.timeout(90_000) });
+    if (!audio.ok) throw new Error("tts_ai_audio_http_" + audio.status);
+    const mimeType = (audio.headers.get("content-type") ?? "audio/wav").split(";")[0]!.trim().toLowerCase();
+    if (!mimeType.startsWith("audio/")) throw new Error("tts_ai_unexpected_content_type:" + mimeType);
+    return {
+      provider: "tts-ai-free",
+      mimeType,
+      extension: mimeType.includes("mpeg") ? "mp3" : "wav",
+      audio: await readBoundedResponse(audio, MAX_AUDIO_BYTES, "audio_payload")
+    };
   }});
   return routes;
 }
