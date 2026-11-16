@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PollinationsVisualProvider, VisualRouter } from "./visual-router.js";
+import { LocalPlateVisualProvider, PollinationsVisualProvider, VisualRouter } from "./visual-router.js";
 
 test("Pollinations provider validates image response and returns bytes", async () => {
   const provider = new PollinationsVisualProvider(async () => new Response(new Uint8Array(2048), { status: 200, headers: { "content-type": "image/jpeg" } }));
@@ -48,4 +48,16 @@ test("visual provider supports a configured endpoint for deterministic deploymen
     if (original === undefined) delete process.env.VISUALS_BASE_URL;
     else process.env.VISUALS_BASE_URL = original;
   }
+});
+
+test("local plate provider is the last resort behind the hosted route", () => {
+  const router = new VisualRouter();
+  const routes = router.availableRoutes();
+  assert.equal(routes[routes.length - 1], "local-plate");
+  assert.ok(routes.length >= 2);
+});
+
+test("local plate provider rejects an empty prompt before spawning ffmpeg", async () => {
+  const provider = new LocalPlateVisualProvider();
+  await assert.rejects(() => provider.generate({ prompt: "   " }), /visual_prompt_required/);
 });
