@@ -1,0 +1,48 @@
+name: Production Compose Validation
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: ["feat/bootstrap-foundation"]
+    paths:
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".env.production.example"
+      - ".github/workflows/production-compose.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".env.production.example"
+      - ".github/workflows/production-compose.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare non-secret validation environment
+        run: cp .env.production.example .env
+      - name: Validate production Compose model
+        run: docker compose config --quiet
+      - name: Assert BullMQ-safe Redis eviction policy
+        run: |
+          docker compose config --format json | node -e '
+            let input = "";
+            process.stdin.on("data", chunk => input += chunk);
+            process.stdin.on("end", () => {
+              const compose = JSON.parse(input);
+              const command = compose.services?.redis?.command;
+              if (!Array.isArray(command) || command[command.indexOf("--maxmemory-policy") + 1] !== "noeviction") {
+                console.error("redis_must_use_noeviction_for_bullmq");
+                process.exit(1);
+              }
+            });
+          '
