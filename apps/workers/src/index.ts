@@ -1,7 +1,7 @@
 import { PrismaClient, JobStatus, AssetKind } from "@prisma/client";
 import { Worker } from "bullmq";
 import { Redis } from "ioredis";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { FreeRoutedScriptProvider } from "./routed-script-generator.js";
 import { TtsRouter } from "./tts-router.js";
@@ -13,6 +13,17 @@ const connection = new Redis(process.env.REDIS_URL ?? "redis://127.0.0.1:6379", 
 const scriptProvider = new FreeRoutedScriptProvider();
 const ttsRouter = new TtsRouter();
 const visualRouter = new VisualRouter();
+const INLINE_ASSET_LIMIT_BYTES = 16 * 1024 * 1024;
+
+/** Docker hosts on the free plan have no persistent disk, so small payloads are also kept in Postgres. */
+const inlineContent = (bytes: Buffer | string): Uint8Array<ArrayBuffer> | undefined => {
+  const buffer = typeof bytes === "string" ? Buffer.from(bytes, "utf8") : bytes;
+  if (buffer.byteLength > INLINE_ASSET_LIMIT_BYTES) return undefined;
+  const copy = new Uint8Array(buffer.byteLength);
+  copy.set(buffer);
+  return copy;
+};
+
 const mediaStoragePath = process.env.MEDIA_STORAGE_DIR ?? "";
 if (!isAbsolute(mediaStoragePath)) throw new Error("MEDIA_STORAGE_DIR_must_be_an_absolute_shared_path");
 const mediaRoot = resolve(mediaStoragePath);
@@ -60,7 +71,8 @@ const worker = new Worker("video-generation", async task => {
       await writeFile(audioPath, result.audio);
       await prisma.asset.create({ data: {
         jobId: videoJobId, kind: AssetKind.AUDIO, storageKey: videoJobId + "/" + audioName,
-        mimeType: result.mimeType, sizeBytes: BigInt(result.audio.byteLength), durationMs: scene.durationMs
+        mimeType: result.mimeType, sizeBytes: BigInt(result.audio.byteLength), durationMs: scene.durationMs,
+        content: inlineContent(result.audio)
       }});
       renderScenes.push({ imagePath: "", audioPath, durationMs: scene.durationMs, narration: scene.narration });
       console.log("voice scene " + (index + 1) + "/" + script.scenes.length + " generated via " + result.provider);
@@ -77,7 +89,8 @@ const worker = new Worker("video-generation", async task => {
       await writeFile(imagePath, result.image);
       await prisma.asset.create({ data: {
         jobId: videoJobId, kind: AssetKind.IMAGE, storageKey: videoJobId + "/" + imageName,
-        mimeType: result.mimeType, sizeBytes: BigInt(result.image.byteLength), durationMs: scene.durationMs
+        mimeType: result.mimeType, sizeBytes: BigInt(result.image.byteLength), durationMs: scene.durationMs,
+        content: inlineContent(result.image)
       }});
       renderScenes[index]!.imagePath = imagePath;
       console.log("visual scene " + (index + 1) + "/" + script.scenes.length + " generated via " + result.provider);
@@ -91,7 +104,8 @@ const worker = new Worker("video-generation", async task => {
     await writeFile(join(jobDirectory, captionName), captionText, "utf8");
     await prisma.asset.create({ data: {
       jobId: videoJobId, kind: AssetKind.CAPTION, storageKey: videoJobId + "/" + captionName,
-      mimeType: "application/x-subrip", sizeBytes: BigInt(Buffer.byteLength(captionText))
+      mimeType: "application/x-subrip", sizeBytes: BigInt(Buffer.byteLength(captionText)),
+      content: inlineContent(captionText)
     }});
     const videoName = "final.mp4";
     const videoPath = join(jobDirectory, videoName);
@@ -101,7 +115,8 @@ const worker = new Worker("video-generation", async task => {
     if (videoStat.size < 1024) throw new Error("rendered_video_too_small");
     await prisma.asset.create({ data: {
       jobId: videoJobId, kind: AssetKind.VIDEO, storageKey: videoJobId + "/" + videoName,
-      mimeType: "video/mp4", sizeBytes: BigInt(videoStat.size), durationMs: script.scenes.reduce((sum, scene) => sum + scene.durationMs, 0)
+      mimeType: "video/mp4", sizeBytes: BigInt(videoStat.size), durationMs: script.scenes.reduce((sum, scene) => sum + scene.durationMs, 0),
+      content: inlineContent(await readFile(videoPath))
     }});
     await prisma.videoJob.update({ where: { id: videoJobId }, data: { status: JobStatus.COMPLETED, progress: 100, errorCode: null, errorMessage: null }});
     console.log("video job completed: " + videoJobId + " (" + videoStat.size + " bytes)");

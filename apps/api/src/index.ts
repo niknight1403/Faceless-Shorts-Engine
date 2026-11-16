@@ -4,7 +4,7 @@ import { readJsonBody } from "./http-body.js";
 import { parseByteRange } from "./byte-range.js";
 import { createReadStream } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { PrismaClient, JobStatus } from "@prisma/client";
 import { Queue } from "bullmq";
@@ -54,6 +54,47 @@ async function authenticate(req: import("node:http").IncomingMessage): Promise<A
   if (!session || session.revokedAt || session.expiresAt <= new Date()) return null;
   return session as AuthenticatedSession;
 }
+/**
+ * The free hosting plan resets the container filesystem on every restart, so small payloads also live
+ * in Postgres. This serves them with the same range semantics as the file path.
+ */
+function serveStoredAsset(
+  req: IncomingMessage,
+  res: ServerResponse,
+  asset: { content: Uint8Array | null; mimeType: string; storageKey: string }
+): boolean {
+  const stored = asset.content;
+  if (!stored || stored.byteLength === 0) return false;
+  const body = Buffer.from(stored);
+  const total = body.byteLength;
+  let start = 0;
+  let end = total - 1;
+  let status = 200;
+  const range = req.headers.range;
+  if (range) {
+    const parsedRange = parseByteRange(range, total);
+    if (!parsedRange) {
+      res.writeHead(416, { "content-range": "bytes */" + total });
+      res.end();
+      return true;
+    }
+    ({ start, end } = parsedRange);
+    status = 206;
+  }
+  const headers: Record<string, string | number> = {
+    "content-type": asset.mimeType,
+    "content-length": end - start + 1,
+    "content-disposition": "attachment; filename=\"" + basename(asset.storageKey).replace(/[^a-zA-Z0-9._-]/g, "_") + "\"",
+    "accept-ranges": "bytes",
+    "cache-control": "private, no-store",
+    "x-content-type-options": "nosniff",
+  };
+  if (status === 206) headers["content-range"] = "bytes " + start + "-" + end + "/" + total;
+  res.writeHead(status, headers);
+  res.end(body.subarray(start, end + 1));
+  return true;
+}
+
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -235,7 +276,7 @@ const server = createServer(async (req, res) => {
         const membership = project ? jobSession.user.memberships.find(m => m.organizationId === project.organizationId) : null;
         if (!membership) { json(res, 404, { error: "video_job_not_found" }); return; }
       }
-      json(res, 200, { ...job, assets: job.assets.map(asset => { const { storageKey, ...publicAsset } = asset; void storageKey; return { ...publicAsset, sizeBytes: asset.sizeBytes?.toString() ?? null, downloadUrl: assetDownloadUrl(asset) }; }) }); return;
+      json(res, 200, { ...job, assets: job.assets.map(asset => { const { storageKey, content, ...publicAsset } = asset; void storageKey; void content; return { ...publicAsset, sizeBytes: asset.sizeBytes?.toString() ?? null, downloadUrl: assetDownloadUrl(asset) }; }) }); return;
     }
     const assetMatch = url.pathname.match(/^\/v1\/assets\/([a-zA-Z0-9_-]+)$/);
     if (req.method === "GET" && assetMatch) {
@@ -262,8 +303,14 @@ const server = createServer(async (req, res) => {
         }
         filePath = actualFile;
         fileInfo = await stat(actualFile);
-      } catch { json(res, 404, { error: "asset_file_missing" }); return; }
-      if (!fileInfo.isFile()) { json(res, 404, { error: "asset_file_missing" }); return; }
+      } catch {
+        if (serveStoredAsset(req, res, asset)) return;
+        json(res, 404, { error: "asset_file_missing" }); return;
+      }
+      if (!fileInfo.isFile()) {
+        if (serveStoredAsset(req, res, asset)) return;
+        json(res, 404, { error: "asset_file_missing" }); return;
+      }
       const range = req.headers.range;
       let start = 0, end = fileInfo.size - 1, status = 200;
       if (range) {

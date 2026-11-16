@@ -126,6 +126,8 @@ model Asset {
   checksum    String?
   durationMs  Int?
   metadata    Json?
+  /// Durable copy of small assets: the free hosting plan wipes the container filesystem on restart.
+  content     Bytes?
   job         VideoJob  @relation(fields: [jobId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())
   @@index([jobId, kind])
