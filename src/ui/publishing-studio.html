@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Publishing Studio — Faceless Shorts Engine</title>
+  <link rel="stylesheet" href="/publishing-studio.css">
+  <script type="module" src="/publishing-studio.mjs"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="wordmark" href="/publishing-studio" aria-label="Publishing Studio Startseite">FSE <span>STUDIO</span></a>
+    <p>Lokaler Veröffentlichungs-Check</p>
+  </header>
+
+  <main>
+    <section class="intro">
+      <p class="eyebrow">VORSCHAU · PRÜFEN · FREIGEBEN</p>
+      <h1>Erst ansehen.<br><span>Dann veröffentlichen.</span></h1>
+      <p class="intro-copy">Wähle einen fertigen Short, prüfe die konkrete Vorschau und Metadaten. Ein Upload startet erst nach einer separaten, ausdrücklichen Freigabe.</p>
+      <p class="local-note"><span aria-hidden="true"></span> Läuft lokal · keine Konto-Verknüpfung oder Veröffentlichung beim Öffnen</p>
+    </section>
+
+    <section class="auth-card" id="auth-panel" aria-labelledby="auth-heading">
+      <div>
+        <p class="step-label">LOKALER ZUGRIFF</p>
+        <h2 id="auth-heading">Publishing-Schlüssel eingeben</h2>
+        <p>Der Schlüssel wird nur während dieser Browser-Sitzung im Arbeitsspeicher gehalten und nicht gespeichert.</p>
+      </div>
+      <form id="auth-form" class="auth-form">
+        <label for="api-key">Lokaler API-Schlüssel</label>
+        <div class="inline-form">
+          <input id="api-key" name="apiKey" type="password" autocomplete="off" required>
+          <button class="button button-primary" type="submit">Lokal verbinden</button>
+        </div>
+      </form>
+      <p class="notice" id="auth-message" role="status" aria-live="polite"></p>
+    </section>
+
+    <div id="workspace" hidden>
+      <div class="session-strip"><span>Lokale Sitzung aktiv · Schlüssel wird nicht gespeichert</span><button class="button button-quiet" id="sign-out" type="button">Abmelden</button></div>
+      <section class="work-card" aria-labelledby="selection-heading">
+        <div class="section-heading">
+          <div><p class="step-label">01 / AUSWÄHLEN</p><h2 id="selection-heading">Video und Zielkonto</h2></div>
+          <button class="button button-quiet" id="reload-data" type="button">Liste aktualisieren</button>
+        </div>
+        <div class="selection-grid">
+          <label for="source-job">Fertiger Short</label>
+          <select id="source-job" required><option value="">Lade fertige Videos …</option></select>
+          <label for="target-account">Verbundener Zielaccount</label>
+          <select id="target-account" required><option value="">Lade Accounts …</option></select>
+        </div>
+        <p class="muted" id="selection-note">Nur bereits fertige Videos und lokal gespeicherte Verbindungen werden angezeigt. Hier wird kein Konto verbunden.</p>
+      </section>
+
+      <section class="work-card preview-card" aria-labelledby="preview-heading">
+        <div class="section-heading">
+          <div><p class="step-label">02 / VORSCHAU</p><h2 id="preview-heading">Prüfe genau dieses Video</h2></div>
+          <span class="status-pill" id="preview-state">Noch kein Video gewählt</span>
+        </div>
+        <div class="preview-layout">
+          <div class="video-frame">
+            <video id="video-preview" controls playsinline preload="metadata" aria-label="Vorschau des ausgewählten Shorts"></video>
+            <p id="video-placeholder">Wähle links ein fertiges Video, um die lokale Vorschau zu laden.</p>
+          </div>
+          <div class="review-panel">
+            <p class="review-title">Sichtprüfung erforderlich</p>
+            <p>Starte die Videowiedergabe und kontrolliere Bild, Schnitt und Ton. Danach bestätige, dass du die Vorschau und die Angaben auf dieser Seite geprüft hast.</p>
+            <label class="review-check" for="reviewed">
+              <input id="reviewed" type="checkbox" disabled>
+              <span>Ich habe die Vorschau und die untenstehenden Angaben geprüft.</span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section class="work-card" aria-labelledby="metadata-heading">
+        <div class="section-heading">
+          <div><p class="step-label">03 / ANGABEN</p><h2 id="metadata-heading">Metadaten und Offenlegung</h2></div>
+          <span class="muted">Plattform: <strong id="platform-label">—</strong></span>
+        </div>
+        <div id="youtube-fields" class="metadata-grid" hidden>
+          <label for="youtube-title">Titel</label>
+          <input id="youtube-title" maxlength="100" autocomplete="off">
+          <label for="youtube-description">Beschreibung</label>
+          <textarea id="youtube-description" rows="3"></textarea>
+          <label for="youtube-privacy">Sichtbarkeit</label>
+          <select id="youtube-privacy"><option value="private">Privat</option><option value="unlisted">Nicht gelistet</option><option value="public">Öffentlich</option></select>
+          <label class="disclosure" for="youtube-ai"><input id="youtube-ai" type="checkbox"><span>Realistische synthetische/ki-generierte Inhalte sind enthalten</span></label>
+        </div>
+        <div id="tiktok-fields" class="metadata-grid" hidden>
+          <label for="tiktok-caption">Caption</label>
+          <textarea id="tiktok-caption" rows="3" maxlength="2200"></textarea>
+          <p class="disclosure-note">TikTok-Inbox-Modus: Der Entwurf wird nach ausdrücklicher Freigabe in TikTok zur Fertigstellung bereitgestellt. Prüfe dort vor dem letzten Schritt auch Sichtbarkeit und KI-Offenlegung. Direct Post wird in diesem Studio nicht angeboten.</p>
+        </div>
+        <p class="muted" id="metadata-note">Wähle ein Zielkonto, um die passenden Angaben zu sehen. Jede Metadatenänderung setzt die Sichtprüfung zurück.</p>
+      </section>
+
+      <section class="action-card" aria-labelledby="preflight-heading">
+        <p class="step-label">04 / VORBEREITEN</p>
+        <h2 id="preflight-heading">Lokale Prüfung erstellen</h2>
+        <p>Dieser Schritt erstellt nur einen lokalen Preflight-Job. Er startet keinen Plattform-Upload.</p>
+        <button class="button button-primary" id="create-preflight" type="button" disabled>Vorschau geprüft — Preflight erstellen</button>
+        <p class="notice" id="workflow-message" role="status" aria-live="polite"></p>
+        <div class="preflight-result" id="preflight-result" hidden></div>
+      </section>
+
+      <section class="approval-card" id="approval-panel" aria-labelledby="approval-heading" hidden>
+        <p class="step-label">05 / LETZTE FREIGABE</p>
+        <h2 id="approval-heading">Veröffentlichung ausdrücklich bestätigen</h2>
+        <p id="approval-summary"></p>
+        <label class="review-check final-check" for="final-approval">
+          <input id="final-approval" type="checkbox">
+          <span>Ich bestätige ausdrücklich den Upload dieses geprüften Videos an das ausgewählte Zielkonto.</span>
+        </label>
+        <button class="button button-publish" id="confirm-publish" type="button" disabled>Jetzt veröffentlichen</button>
+        <button class="button button-quiet" id="refresh-publishing-job" type="button">Jobstatus abgleichen</button>
+        <p class="notice" id="approval-message" role="status" aria-live="polite"></p>
+      </section>
+    </div>
+
+    <footer><p>Faceless Shorts Engine · Lokales Studio · Veröffentlichungen erfordern zwei getrennte Prüfschritte</p></footer>
+  </main>
+</body>
+</html>
