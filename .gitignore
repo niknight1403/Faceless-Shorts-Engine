@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.*
+!.env.example
+data/
+coverage/
+*.mp4
+*.wav
+*.png
+.DS_Store

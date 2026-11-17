@@ -1,0 +1,17 @@
+{
+  "name": "faceless-shorts-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lokaler Proof of Concept für eine Faceless-Shorts-Medienpipeline",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node src/index.mjs",
+    "start": "node src/index.mjs",
+    "mock": "node scripts/mock-media-provider.mjs",
+    "test": "node --test",
+    "test:e2e": "node --test tests/e2e/*.test.mjs"
+  }
+}
