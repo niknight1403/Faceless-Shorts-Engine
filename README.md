@@ -126,3 +126,19 @@ Alle OAuth- und Plattformantworten des Publishing-E2E-Tests kommen aus einem inj
 Dies ist **kein Produktionsdienst**: Es gibt keine Anmeldung, Mandantentrennung, externe Datenbank oder Cloudspeicherung. Die Jobqueue läuft im API-Prozess und verarbeitet lokal seriell. Der Publishing-Bearer-Key ist ein lokaler Schutz, kein Ersatz für ein Mehrnutzer-Authentifizierungssystem. Die API darf nicht öffentlich bereitgestellt werden. Unterbrochene aktive Renderjobs werden beim Neustart als fehlgeschlagen markiert; externe Uploads werden vorsichtshalber auf `needs_attention` gesetzt und müssen vor einer Wiederholung abgeglichen werden.
 
 Echte Text-, Sprach-, Bild- und Musikprovider, Skript-/Szenenplanung, Löschrichtlinien, Produktions-Queue und Monitoring sind nicht implementiert. Das Publishing Studio ist ausschließlich eine lokale Freigabeoberfläche, kein Produktionsdienst. Echte Kontoverbindungen und Uploads erfordern eigene Plattformzugänge, korrekte App-Registrierung, erforderliche Prüfungen und eine separate manuelle Freigabe. Der Architekturentwurf beschreibt, wie die verbleibenden Komponenten später ergänzt werden können.
+
+
+## Betriebsmodell und offene Entscheidungen
+
+Der aktuelle Betriebsmodus ist ein lokaler Einzelbenutzer-PoC. Er hat weder Mehrnutzer-Anmeldung noch Mandantentrennung, externe Produktionsdatenbank oder Betriebsüberwachung und ist nicht für öffentliche Bereitstellung ausgelegt. Eine lokal konfigurierte Verbindung oder ein vorhandener Plattformadapter macht die Engine nicht zu einem geprüften oder freigegebenen Produktionsdienst.
+
+Die TikTok-Inbox-Integration überträgt einen Entwurf zur Creator-Inbox. `awaiting_creator_action` bedeutet, dass der Creator den Inhalt in der TikTok-App prüfen und dort selbst fertigstellen muss; es bedeutet nicht, dass ein öffentlicher Post erfolgt ist. TikTok Direct Post ist ein separater, derzeit nicht für den regulären Studio-Ablauf freigegebener Modus. Eine Implementierung oder ein Konfigurations-Gate ersetzt weder Produktprüfung noch Plattform-App-Freigabe. YouTube-Uploads verlangen eine ausdrücklich gewählte Sichtbarkeit und eine separate Bestätigung; eine erfolgreiche Uploadannahme ist nicht gleichbedeutend mit abgeschlossener Verarbeitung oder öffentlicher Verfügbarkeit.
+
+Vor einem Produktions- oder Mehrnutzer-Ausbau bleiben diese Entscheidungen offen:
+
+- Soll das Produkt ein lokales Werkzeug für ein einzelnes Konto bleiben oder unabhängige Creator bedienen? Eine Mehrnutzer-Variante braucht zuvor ein eigenes Authentifizierungs-, Mandanten- und Datenhaltungsmodell.
+- Ist TikTok ausschließlich als Inbox-Übergabe vorgesehen, oder soll ein Creator-Produkt mit eigener App-Prüfung und regelkonformer Direct-Post-Oberfläche entwickelt werden? Bis zur Entscheidung bleibt Direct Post außerhalb des freigegebenen Betriebsumfangs.
+- Welche Hosting-, HTTPS-Callback-, Persistenz-, Monitoring- und Support-Anforderungen gelten für einen späteren Produktionsbetrieb? Der aktuelle lokale PoC erfüllt diese nicht.
+- Welche Rechte-, Musik-, KI-Offenlegungs- und Aufbewahrungsentscheidungen gelten für echte statt synthetische Medien? Der Test-Mock kann diese fachlichen Entscheidungen nicht beantworten.
+
+Diese Punkte sind offene Produkt- und Betriebsentscheidungen, keine impliziten Freigaben für Live-Zugänge, öffentliche Posts, Änderungen an Publishing-Schaltern oder Bereitstellung im Internet.

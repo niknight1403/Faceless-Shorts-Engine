@@ -79,6 +79,55 @@ test("Health meldet Providerstörung ohne interne Fehlerdetails oder Secrets", a
   }
 });
 
+test("Health und OAuth-Fehler melden Teilkonfiguration ohne Schlüsselwerte", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "faceless-publishing-health-partial-oauth-"));
+  let application;
+  try {
+    const config = loadConfig({
+      HOST: "127.0.0.1",
+      JOB_DATA_DIR: join(directory, "jobs"),
+      PUBLISHING_DATA_DIR: join(directory, "publishing"),
+      PUBLISHING_ENABLED: "true",
+      PUBLISHING_API_KEY: apiKey,
+      PUBLISHING_TOKEN_KEY: tokenKey,
+      YOUTUBE_OAUTH_CLIENT_ID: "synthetic-youtube-client-id",
+      YOUTUBE_OAUTH_CLIENT_SECRET: "synthetic-youtube-client-secret",
+      YOUTUBE_OAUTH_REDIRECT_URI: "",
+      TIKTOK_OAUTH_CLIENT_ID: "synthetic-tiktok-client-id",
+      TIKTOK_OAUTH_CLIENT_SECRET: "synthetic-tiktok-client-secret",
+      TIKTOK_OAUTH_REDIRECT_URI: "http://127.0.0.1:3000/callback",
+    });
+    let url;
+    ({ application, url } = await start(config));
+
+    const health = await fetch(`${url}/api/v1/health`);
+    assert.equal(health.status, 200);
+    const body = await health.json();
+    assert.equal(body.publishing.status, "partially_configured");
+    assert.deepEqual(body.publishing.platforms, { youtube: false, tiktok: true });
+    const serialized = JSON.stringify(body);
+    for (const secret of [apiKey, tokenKey, "synthetic-youtube-client-id", "synthetic-youtube-client-secret", "synthetic-tiktok-client-id", "synthetic-tiktok-client-secret"]) {
+      assert.equal(serialized.includes(secret), false);
+    }
+
+    const oauthStart = await fetch(`${url}/api/v1/connections/youtube/oauth/start`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "upload" }),
+    });
+    assert.equal(oauthStart.status, 503);
+    const oauthError = await oauthStart.json();
+    assert.equal(oauthError.error.code, "OAUTH_NOT_CONFIGURED");
+    const errorText = JSON.stringify(oauthError);
+    for (const secret of [apiKey, tokenKey, "synthetic-youtube-client-id", "synthetic-youtube-client-secret"]) {
+      assert.equal(errorText.includes(secret), false);
+    }
+  } finally {
+    await close(application);
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("Publishing-API verlangt Bearer-Key und gated Direct Post", async () => {
   const directory = await mkdtemp(join(tmpdir(), "faceless-publishing-api-on-"));
   let application;

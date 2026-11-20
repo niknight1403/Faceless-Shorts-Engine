@@ -71,3 +71,78 @@ Der Autopilot bearbeitet pro wöchentlicher Aktivierung genau den ersten `pendin
 **Abnahme:** Saubere Testausführung, Diffprüfung, dokumentierte Grenzen; danach ist der Autopilot zu deaktivieren und es werden keine weiteren Sprints automatisch erzeugt.
 
 **Status:** completed — `tests/e2e/publishing.test.mjs` simuliert den vollständigen lokalen Render-zu-Publishing-Ablauf mit synthetischem OAuth, YouTube-Upload und Statusabgleich sowie TikTok-Inbox-Upload. Fault Injection deckt YouTube-429-Retry und eine unklare TikTok-Chunkannahme ab; der unsichere TikTok-Upload wird nicht blind wiederholt und bleibt `needs_attention`. `README.md` dokumentiert beide E2E-Abläufe, Mock-Grenzen und dass keine echten Konten/Provider verwendet werden. `npm run test:e2e`: 8 bestanden, 0 fehlgeschlagen; `npm test`: 68 bestanden, 0 fehlgeschlagen; Syntaxprüfungen aller `.mjs`-Dateien und `git diff --check` erfolgreich. Ausschließlich lokale Medien- und injizierte Plattform-Mocks, keine echten OAuth-Zugänge oder erfolgreichen Live-Uploads. Restrisiko: Live-Verhalten und aktuelle Anbieteranforderungen wurden nicht verifiziert. Beim ersten Integrationsversuch wurde wegen fehlender `fetchImpl`-Weitergabe ein synthetisches Token an den echten YouTube-Endpunkt gesendet und mit HTTP 401 abgewiesen; die Injektion wurde behoben, und alle erfolgreichen Wiederholungstests blieben auf lokale Mocks begrenzt.
+
+
+## Folgepaket: Sprints 11–20 — lokale Betriebsreife
+
+Dieses Paket wurde vom Nutzer am 21. November 2026 freigegeben. Umfang: lokale Einzelbenutzer-Betriebsreife; lokale Mocks; keine echten Anbieterzugriffe, öffentlichen Posts, neuen Publishing-Freigaben, Deployments, Commits oder Pushes. TikTok bleibt beim Inbox-Ablauf; Direct Post und öffentliche Veröffentlichungen bleiben außerhalb des Pakets, solange Produkt- und Plattformfreigaben nicht ausdrücklich geklärt sind. Pro Aktivierung wird nur der erste `pending`-Sprint bearbeitet.
+
+### Sprint 11 — Betriebsmodell und Freigabegrenzen
+
+**Ziel:** Betriebsannahmen und offene Produktentscheidungen für den lokalen Einzelbenutzer-PoC nachvollziehbar dokumentieren; vorhandene Preview-, Bestätigungs- und Plattformgrenzen nicht abschwächen.
+**Abnahme:** Dokumentation unterscheidet lokale Einzelbenutzung von Produktions-/Mehrnutzerbetrieb, TikTok Inbox von Direct Post sowie Uploadannahme von tatsächlicher Veröffentlichung. Ungeklärte Produktentscheidungen sind als offen markiert; es werden keine neuen Freigabeschalter aktiviert.
+
+**Status:** completed — `README.md` dokumentiert den lokalen Einzelbenutzer-PoC als Nicht-Produktionsdienst, trennt TikTok-Inbox-Übergabe und `awaiting_creator_action` von einer tatsächlichen Veröffentlichung und erklärt YouTube-Sichtbarkeit/Uploadannahme. Mehrnutzerbetrieb, TikTok-Direct-Post-Produktkonformität, Produktionsbetrieb sowie Rechte-/Offenlegungsregeln für echte Medien sind ausdrücklich als offene Entscheidungen markiert. Es wurden keine Publishing-Freigaben oder Laufzeitfunktionen geändert. `npm test`: 68 bestanden, 0 fehlgeschlagen; `git diff --check` erfolgreich. Dokumentationsänderung; Live-Verhalten und reale Plattformkonten wurden nicht geprüft.
+
+### Sprint 12 — Start- und Konfigurationsschutz
+
+**Ziel:** Publishing-Start und Konfigurationsdiagnostik gegen unsichere Bind-Adressen, unvollständige Schlüssel und widersprüchliche Einstellungen absichern.
+**Abnahme:** Deterministische Konfigurationstests belegen, dass Publishing nur mit gültiger Loopback-Konfiguration startet, unsichere Konfiguration verständlich abgelehnt wird und Fehlerantworten keine Schlüsselwerte enthalten. Vorhandene Freigabeschalter bleiben unverändert.
+
+**Status:** completed — `tests/unit/publishing-config.test.mjs` prüft die dokumentierte Loopback-Allowlist, Ablehnung öffentlicher/ungültiger Hosts, fehlende und ungültige API-/Token-Schlüssel ohne Wert-Leaks sowie, dass OAuth- oder TikTok-Gates Publishing ohne `PUBLISHING_ENABLED` nicht aktivieren. `tests/unit/publishing-api.test.mjs` prüft Health-Readiness bei partieller OAuth-Konfiguration und redigierte `OAUTH_NOT_CONFIGURED`-Fehler. Laufzeitcode und bestehende Freigabeschalter blieben unverändert. Gezielte Tests: 15 bestanden, 0 fehlgeschlagen; `npm test`: 72 bestanden, 0 fehlgeschlagen; `git diff --check` erfolgreich. Nur synthetische Werte und lokale Tests; keine echten Providerzugriffe.
+
+### Sprint 13 — API- und Mediagrenzen
+
+**Ziel:** Eingabe-, Request- und Mediengrenzen für Publishing-Endpunkte explizit validieren, bevor Daten persistiert oder Provideradapter aufgerufen werden.
+**Abnahme:** Tests decken ungültige/überlange Metadaten, unerlaubte Felder, übergroße oder nicht passende Mediendaten sowie unzulässige lokale Pfade ab; abgelehnte Eingaben erzeugen keine Plattform-Mock-Aufrufe und keine Publishing-Jobs.
+
+**Status:** pending
+
+### Sprint 14 — OAuth-State und Token-Erneuerung härten
+
+**Ziel:** Ablauf- und Konkurrenzfälle bei OAuth-State, Reconnect und Token-Refresh mit kontrollierten Mocks absichern.
+**Abnahme:** Tests belegen Ablehnung abgelaufener, wiederverwendeter und falsch gebundener States, Zusammenführung gleichzeitiger Refreshes, sichere Behandlung rotierter Tokens und Redaktion in Antworten/Logs. Es werden keine echten OAuth-Zugänge verwendet.
+
+**Status:** pending
+
+### Sprint 15 — Persistenzfehler und lokale Wiederherstellung
+
+**Ziel:** Fehlerhafte, unvollständige oder nicht lesbare lokale Jobdateien kontrolliert diagnostizieren, ohne gültige Nachbarjobs zu beschädigen.
+**Abnahme:** Fault-Injection-Tests für beschädigte JSON-Dateien und fehlgeschlagene atomare Schreibvorgänge belegen, dass der Dienst keine Daten stillschweigend überschreibt oder löscht, den betroffenen Zustand sicher meldet und Geheimnisse nicht ausgibt.
+
+**Status:** pending
+
+### Sprint 16 — Prozessabbruch an Publishing-Grenzen
+
+**Ziel:** Abbrüche um Uploadstart, Chunktransfer und Plattform-Statusabgleich per lokalen Mocks durch den Wiederanlaufpfad prüfen.
+**Abnahme:** Neustarttests zeigen, dass sicher fortsetzbare Zustände abgeglichen werden und unklare externe Annahmen auf `needs_attention` bleiben; kein Fault-Injection-Fall löst einen blinden zweiten Upload aus.
+
+**Status:** pending
+
+### Sprint 17 — Speicherübersicht und nichtdestruktive Aufbewahrung
+
+**Ziel:** Lokale Job-/Exportbelegung und Aufbewahrung nachvollziehbar machen und sichere manuelle Bereinigungsvorschläge ergänzen, ohne Daten automatisch zu löschen.
+**Abnahme:** Tests prüfen Berechnungen/Filter für terminale und aktive Jobs, die Nichtaufnahme aktiver oder manuell zu prüfender Uploads sowie redigierte Diagnoseausgaben. Es gibt keinen automatischen Löschpfad.
+
+**Status:** pending
+
+### Sprint 18 — Einheitliche Fehlerdiagnostik und Redaktion
+
+**Ziel:** Plattform-, Konfigurations- und Persistenzfehler mit stabilen, nutzerverständlichen Fehlercodes und sicheren Handlungshinweisen darstellen.
+**Abnahme:** Tests unterscheiden Auth-, Rate-Limit-, Inhalts-, Provider- und unklare Uploadfehler; keine Antwort oder Diagnose enthält Tokens, Session-URLs, private Metadaten oder rohe Providerantworten.
+
+**Status:** pending
+
+### Sprint 19 — Publishing-Studio-Bedienbarkeit
+
+**Ziel:** Tastaturbedienung sowie Lade-, Leer-, Fehler- und Wiederabgleichszustände im lokalen Publishing Studio verbessern, ohne die Freigabeschritte zu verkürzen.
+**Abnahme:** UI-/Flow-Tests belegen zugängliche Beschriftungen und Fokusführung, sichtbare Statusmeldungen, fortbestehende Sichtprüfung und separate Uploadbestätigung sowie sicheren GET-Statusabgleich nach unklarer Antwort. Direct Post bleibt gesperrt.
+
+**Status:** pending
+
+### Sprint 20 — Lokaler Release-Abnahmelauf
+
+**Ziel:** Die lokalen Sicherheits-, Wiederherstellungs- und E2E-Prüfungen des Folgepakets als reproduzierbaren Abnahmelauf dokumentieren.
+**Abnahme:** `npm run test:e2e`, `npm test`, Syntaxprüfungen aller `.mjs`-Dateien und `git diff --check` bestehen; Testdokumentation nennt Mock-Grenzen und offene Live-Risiken. Es werden keine echten Konten/Provider, Deployments, Commits oder Pushes verwendet. Nach Abschluss dieses freigegebenen Zehnerpakets wird der zugehörige Wochen-Schedule pausiert; es werden keine weiteren Sprints ohne neue Nutzerfreigabe ergänzt.
+
+**Status:** pending
