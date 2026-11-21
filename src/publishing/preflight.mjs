@@ -1,4 +1,5 @@
 import { stat } from "node:fs/promises";
+import { basename, isAbsolute } from "node:path";
 
 export class PublishingPreflightError extends Error {
   constructor(code, message) {
@@ -23,6 +24,7 @@ export async function validatePublishRequest({
 }) {
   if (!["youtube", "tiktok"].includes(platform)) fail("UNSUPPORTED_PLATFORM", "Plattform wird nicht unterstützt.");
   if (!filePath || typeof filePath !== "string") fail("VIDEO_FILE_REQUIRED", "Ein lokaler Videopfad ist erforderlich.");
+  if (!isAbsolute(filePath) || !basename(filePath).toLowerCase().endsWith(".mp4") || filePath.includes("\0") || filePath.split("/").includes("..")) fail("VIDEO_PATH_INVALID", "Es ist ausschließlich ein absoluter lokaler MP4-Exportpfad zulässig.");
   if (!video || typeof video !== "object") fail("VIDEO_METADATA_REQUIRED", "Videometadaten fehlen.");
   if (!metadata || typeof metadata !== "object") fail("PUBLISH_METADATA_REQUIRED", "Veröffentlichungsmetadaten fehlen.");
 
@@ -33,6 +35,7 @@ export async function validatePublishRequest({
     fail("VIDEO_FILE_NOT_FOUND", "Die fertige Videodatei ist nicht verfügbar.");
   }
   if (!fileInfo.isFile() || fileInfo.size < 1) fail("VIDEO_FILE_INVALID", "Die Videodatei ist leer oder ungültig.");
+  if (fileInfo.size > 4 * 1024 * 1024 * 1024) fail("VIDEO_FILE_TOO_LARGE", "Die lokale Videodatei überschreitet die zulässige Größe.");
 
   const duration = Number(video.durationSeconds);
   if (!Number.isFinite(duration) || duration <= 0) fail("INVALID_VIDEO_DURATION", "Die Videolaufzeit fehlt oder ist ungültig.");

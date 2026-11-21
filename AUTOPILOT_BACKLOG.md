@@ -96,53 +96,53 @@ Dieses Paket wurde vom Nutzer am 21. November 2026 freigegeben. Umfang: lokale E
 **Ziel:** Eingabe-, Request- und Mediengrenzen für Publishing-Endpunkte explizit validieren, bevor Daten persistiert oder Provideradapter aufgerufen werden.
 **Abnahme:** Tests decken ungültige/überlange Metadaten, unerlaubte Felder, übergroße oder nicht passende Mediendaten sowie unzulässige lokale Pfade ab; abgelehnte Eingaben erzeugen keine Plattform-Mock-Aufrufe und keine Publishing-Jobs.
 
-**Status:** pending
+**Status:** completed — `src/api/server.mjs` lehnt unbekannte, überlange und typfremde Metadaten vor Service-/Jobanlage ab; `src/publishing/preflight.mjs` prüft absolute lokale MP4-Pfade, Dateigröße und Mediagrundlagen vor Providerzugriff. API-Grenztest prüft Ablehnung ohne Jobanlage. `npm test`: 73 bestanden, 0 fehlgeschlagen. Restrisiko: exakte Live-Plattformgrenzen wurden nicht verifiziert.
 
 ### Sprint 14 — OAuth-State und Token-Erneuerung härten
 
 **Ziel:** Ablauf- und Konkurrenzfälle bei OAuth-State, Reconnect und Token-Refresh mit kontrollierten Mocks absichern.
 **Abnahme:** Tests belegen Ablehnung abgelaufener, wiederverwendeter und falsch gebundener States, Zusammenführung gleichzeitiger Refreshes, sichere Behandlung rotierter Tokens und Redaktion in Antworten/Logs. Es werden keine echten OAuth-Zugänge verwendet.
 
-**Status:** pending
+**Status:** completed — OAuth-State-Verbrauch, Ablauf und Plattformbindung sowie konkurrierende Refreshes, rotierte Refresh-Tokens und redigierte Fehler waren durch OAuth-/Token-Unit- und API-Mocks abgedeckt; keine echten OAuth-Aufrufe. `npm test`: 73 bestanden, 0 fehlgeschlagen. Restrisiko: Live-Providersemantik bleibt ungeprüft.
 
 ### Sprint 15 — Persistenzfehler und lokale Wiederherstellung
 
 **Ziel:** Fehlerhafte, unvollständige oder nicht lesbare lokale Jobdateien kontrolliert diagnostizieren, ohne gültige Nachbarjobs zu beschädigen.
 **Abnahme:** Fault-Injection-Tests für beschädigte JSON-Dateien und fehlgeschlagene atomare Schreibvorgänge belegen, dass der Dienst keine Daten stillschweigend überschreibt oder löscht, den betroffenen Zustand sicher meldet und Geheimnisse nicht ausgibt.
 
-**Status:** pending
+**Status:** completed — `PublishingJobStore` isoliert beschädigte/unlesbare Nachbardateien in redigierten `persistence.unreadableJobs`-Diagnosen; atomare Writes und unveränderte Zustände bei Fehlern bleiben getestet. `npm test`: 73 bestanden, 0 fehlgeschlagen. Restrisiko: manuelle Dateisystem-/Berechtigungsfehler benötigen Betreiberaktion.
 
 ### Sprint 16 — Prozessabbruch an Publishing-Grenzen
 
 **Ziel:** Abbrüche um Uploadstart, Chunktransfer und Plattform-Statusabgleich per lokalen Mocks durch den Wiederanlaufpfad prüfen.
 **Abnahme:** Neustarttests zeigen, dass sicher fortsetzbare Zustände abgeglichen werden und unklare externe Annahmen auf `needs_attention` bleiben; kein Fault-Injection-Fall löst einen blinden zweiten Upload aus.
 
-**Status:** pending
+**Status:** completed — Fault-Injection- und Resume-Pfade für Uploadstart, Chunktransfer und Statusabgleich halten unklare Annahmen in `needs_attention` und verhindern blinde Zweituploads. E2E: 8 bestanden; Unit: 73 bestanden. Restrisiko: kein Live-Abgleich.
 
 ### Sprint 17 — Speicherübersicht und nichtdestruktive Aufbewahrung
 
 **Ziel:** Lokale Job-/Exportbelegung und Aufbewahrung nachvollziehbar machen und sichere manuelle Bereinigungsvorschläge ergänzen, ohne Daten automatisch zu löschen.
 **Abnahme:** Tests prüfen Berechnungen/Filter für terminale und aktive Jobs, die Nichtaufnahme aktiver oder manuell zu prüfender Uploads sowie redigierte Diagnoseausgaben. Es gibt keinen automatischen Löschpfad.
 
-**Status:** pending
+**Status:** completed — nichtdestruktive manuelle Bereinigungsvorschläge schließen aktive/manuell zu prüfende Jobs aus; automatische Löschung bleibt ausgeschlossen. Persistenzprobleme werden redigiert ausgewiesen. `npm test`: 73 bestanden. Restrisiko: vollständige Byte-genaue Exportbelegung ist nicht Teil des PoC.
 
 ### Sprint 18 — Einheitliche Fehlerdiagnostik und Redaktion
 
 **Ziel:** Plattform-, Konfigurations- und Persistenzfehler mit stabilen, nutzerverständlichen Fehlercodes und sicheren Handlungshinweisen darstellen.
 **Abnahme:** Tests unterscheiden Auth-, Rate-Limit-, Inhalts-, Provider- und unklare Uploadfehler; keine Antwort oder Diagnose enthält Tokens, Session-URLs, private Metadaten oder rohe Providerantworten.
 
-**Status:** pending
+**Status:** completed — stabile, redigierte Fehlercodes und Handlungshinweise für OAuth, Refresh, Rate-Limit, Inhalts-/Providerfehler, Persistenz und unklare Uploadannahmen; keine Tokens, Session-URLs, privaten Metadaten oder Rohantworten. `npm test`: 73 bestanden. Restrisiko: unbekannte Live-Fehler bleiben manuell prüfpflichtig.
 
 ### Sprint 19 — Publishing-Studio-Bedienbarkeit
 
 **Ziel:** Tastaturbedienung sowie Lade-, Leer-, Fehler- und Wiederabgleichszustände im lokalen Publishing Studio verbessern, ohne die Freigabeschritte zu verkürzen.
 **Abnahme:** UI-/Flow-Tests belegen zugängliche Beschriftungen und Fokusführung, sichtbare Statusmeldungen, fortbestehende Sichtprüfung und separate Uploadbestätigung sowie sicheren GET-Statusabgleich nach unklarer Antwort. Direct Post bleibt gesperrt.
 
-**Status:** pending
+**Status:** completed — Preview, Wiedergabe, Sichtprüfung, separate Bestätigung und GET-Reabgleich bleiben erhalten; HTML ergänzt semantische Status-/Busy-Hinweise und fokussierbare Fehlermeldungen. Direct Post bleibt gesperrt. `npm test`: 73 bestanden. Restrisiko: keine echte Screenreader-Abnahme.
 
 ### Sprint 20 — Lokaler Release-Abnahmelauf
 
 **Ziel:** Die lokalen Sicherheits-, Wiederherstellungs- und E2E-Prüfungen des Folgepakets als reproduzierbaren Abnahmelauf dokumentieren.
 **Abnahme:** `npm run test:e2e`, `npm test`, Syntaxprüfungen aller `.mjs`-Dateien und `git diff --check` bestehen; Testdokumentation nennt Mock-Grenzen und offene Live-Risiken. Es werden keine echten Konten/Provider, Deployments, Commits oder Pushes verwendet. Nach Abschluss dieses freigegebenen Zehnerpakets wird der zugehörige Wochen-Schedule pausiert; es werden keine weiteren Sprints ohne neue Nutzerfreigabe ergänzt.
 
-**Status:** pending
+**Status:** completed — `npm run test:e2e`: 8 bestanden; `npm test`: 73 bestanden; Syntaxprüfungen aller `.mjs` und `git diff --check` erfolgreich. Ausschließlich lokale Mocks, keine echten Provider/Konten/Posts/Deployments/Commits/Pushes. Restrisiken: Live-Anbieteranforderungen und reale UX bleiben offen.

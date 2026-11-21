@@ -37,6 +37,7 @@ export class PublishingJobStore {
     this.jobs = new Map();
     this.idempotencyIndex = new Map();
     this.writeLocks = new Map();
+    this.loadIssues = [];
   }
 
   async initialize() {
@@ -49,10 +50,14 @@ export class PublishingJobStore {
         this.jobs.set(job.id, job);
         if (job.idempotencyKey) this.idempotencyIndex.set(job.idempotencyKey, job.id);
       } catch (error) {
-        if (error.code !== "ENOENT") throw new Error(`Publishing-Auftrag konnte nicht geladen werden (${entry.name}): ${error.message}`);
+        if (error.code !== "ENOENT") this.loadIssues.push({ id: entry.name, code: "PERSISTED_JOB_UNREADABLE", message: "Lokale Publishing-Datei konnte nicht sicher gelesen werden; Nachbaraufträge bleiben erhalten." });
       }
     }
     return this;
+  }
+
+  diagnostics() {
+    return { unreadableJobs: this.loadIssues.map(issue => ({ ...issue })) };
   }
 
   async create({ sourceJobId, platform, accountId, metadata = {}, idempotencyKey = null, sourceSnapshot = null }) {

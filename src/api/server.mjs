@@ -136,6 +136,8 @@ const PUBLISH_METADATA_FIELDS = new Set([
   "caption", "privacyLevel", "disableComment", "disableDuet", "disableStitch", "brandContentToggle", "brandOrganicToggle", "isAigc", "videoCoverTimestampMs",
 ]);
 
+const METADATA_LIMITS = Object.freeze({ title: 100, description: 5000, caption: 2200, tags: 30 });
+
 const PUBLISHING_STUDIO_ASSETS = new Map([
   ["/publishing-studio", { file: "publishing-studio.html", contentType: "text/html; charset=utf-8" }],
   ["/publishing-studio.css", { file: "publishing-studio.css", contentType: "text/css; charset=utf-8" }],
@@ -147,7 +149,15 @@ function validatePublishMetadata(value, mode) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new ApiError(400, "INVALID_METADATA", "metadata muss ein JSON-Objekt sein.");
   const metadata = {};
   for (const [key, item] of Object.entries(value)) {
-    if (PUBLISH_METADATA_FIELDS.has(key)) metadata[key] = item;
+    if (!PUBLISH_METADATA_FIELDS.has(key)) throw new ApiError(400, "UNKNOWN_METADATA_FIELD", `Unbekanntes Metadatenfeld: ${key}.`);
+    if (["title", "description", "caption", "categoryId", "privacyStatus", "privacyLevel"].includes(key)) {
+      if (typeof item !== "string" || item.length > (METADATA_LIMITS[key] || 200)) throw new ApiError(400, "INVALID_METADATA_VALUE", `Metadatenfeld ${key} ist ungültig oder zu lang.`);
+    }
+    if (key === "tags" && (!Array.isArray(item) || item.length > METADATA_LIMITS.tags || item.some(tag => typeof tag !== "string" || tag.length > 100))) throw new ApiError(400, "INVALID_METADATA_VALUE", "tags muss eine kurze Liste gültiger Zeichenketten sein.");
+    if (["containsSyntheticMedia", "notifySubscribers", "disableComment", "disableDuet", "disableStitch", "brandContentToggle", "brandOrganicToggle", "isAigc"].includes(key) && typeof item !== "boolean") throw new ApiError(400, "INVALID_METADATA_VALUE", `Metadatenfeld ${key} muss boolean sein.`);
+    if (key === "publishAt" && (typeof item !== "string" || !Number.isFinite(Date.parse(item)))) throw new ApiError(400, "INVALID_METADATA_VALUE", "publishAt muss ein gültiger Zeitstempel sein.");
+    if (key === "videoCoverTimestampMs" && (!Number.isInteger(item) || item < 0 || item > 180000)) throw new ApiError(400, "INVALID_METADATA_VALUE", "videoCoverTimestampMs ist ungültig.");
+    metadata[key] = typeof item === "string" ? item.normalize("NFC") : structuredClone(item);
   }
   if (mode) metadata.mode = mode;
   return metadata;
@@ -284,6 +294,7 @@ export async function createApiServer({
         sendJson(response, 200, buildPublishingDiagnostics({
           jobs: publishing.publishingJobStore.list(),
           oauth: config.oauth,
+          persistence: publishing.publishingJobStore.diagnostics(),
         }));
         return;
       }

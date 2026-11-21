@@ -520,3 +520,25 @@ test("Publishing-Studio verhindert blinden zweiten Upload nach unklarer Freigabe
   assert.equal(confirmCalls, 1);
   assert.equal(statusCalls, 1);
 });
+
+
+test("Publishing-API lehnt unbekannte oder überlange Metadaten vor Jobanlage ab", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "faceless-publishing-api-boundary-"));
+  let application;
+  try {
+    const config = loadConfig({ HOST: "127.0.0.1", JOB_DATA_DIR: join(directory, "jobs"), PUBLISHING_DATA_DIR: join(directory, "publishing"), PUBLISHING_ENABLED: "true", PUBLISHING_API_KEY: apiKey, PUBLISHING_TOKEN_KEY: tokenKey });
+    let url;
+    ({ application, url } = await start(config));
+    const response = await fetch(`${url}/api/v1/shorts-jobs/11111111-1111-4111-8111-111111111111/publish`, {
+      method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ platform: "youtube", connectionId: "youtube:test", metadata: { title: "x", unexpected: true } }),
+    });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error.code, "UNKNOWN_METADATA_FIELD");
+    const jobs = await fetch(`${url}/api/v1/publishing-jobs`, { headers: { Authorization: `Bearer ${apiKey}` } });
+    assert.deepEqual((await jobs.json()).jobs, []);
+  } finally {
+    await close(application);
+    await rm(directory, { recursive: true, force: true });
+  }
+});

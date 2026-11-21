@@ -40,7 +40,7 @@
 
     <div id="workspace" hidden>
       <div class="session-strip"><span>Lokale Sitzung aktiv · Schlüssel wird nicht gespeichert</span><button class="button button-quiet" id="sign-out" type="button">Abmelden</button></div>
-      <section class="work-card" aria-labelledby="selection-heading">
+      <section class="work-card" aria-labelledby="selection-heading" aria-busy="false" id="selection-panel">
         <div class="section-heading">
           <div><p class="step-label">01 / AUSWÄHLEN</p><h2 id="selection-heading">Video und Zielkonto</h2></div>
           <button class="button button-quiet" id="reload-data" type="button">Liste aktualisieren</button>
@@ -51,7 +51,7 @@
           <label for="target-account">Verbundener Zielaccount</label>
           <select id="target-account" required><option value="">Lade Accounts …</option></select>
         </div>
-        <p class="muted" id="selection-note">Nur bereits fertige Videos und lokal gespeicherte Verbindungen werden angezeigt. Hier wird kein Konto verbunden.</p>
+        <p class="muted" id="selection-note" role="status" aria-live="polite">Nur bereits fertige Videos und lokal gespeicherte Verbindungen werden angezeigt. Hier wird kein Konto verbunden.</p>
       </section>
 
       <section class="work-card preview-card" aria-labelledby="preview-heading">
@@ -102,7 +102,7 @@
         <h2 id="preflight-heading">Lokale Prüfung erstellen</h2>
         <p>Dieser Schritt erstellt nur einen lokalen Preflight-Job. Er startet keinen Plattform-Upload.</p>
         <button class="button button-primary" id="create-preflight" type="button" disabled>Vorschau geprüft — Preflight erstellen</button>
-        <p class="notice" id="workflow-message" role="status" aria-live="polite"></p>
+        <p class="notice" id="workflow-message" role="status" aria-live="polite" tabindex="-1"></p>
         <div class="preflight-result" id="preflight-result" hidden></div>
       </section>
 
@@ -116,7 +116,7 @@
         </label>
         <button class="button button-publish" id="confirm-publish" type="button" disabled>Jetzt veröffentlichen</button>
         <button class="button button-quiet" id="refresh-publishing-job" type="button">Jobstatus abgleichen</button>
-        <p class="notice" id="approval-message" role="status" aria-live="polite"></p>
+        <p class="notice" id="approval-message" role="status" aria-live="polite" tabindex="-1"></p>
       </section>
     </div>
 

@@ -16,7 +16,7 @@ function timestamp(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function buildPublishingDiagnostics({ jobs = [], oauth = {}, now = Date.now() } = {}) {
+export function buildPublishingDiagnostics({ jobs = [], oauth = {}, persistence = {}, now = Date.now() } = {}) {
   const platforms = Object.fromEntries(["youtube", "tiktok"].map(platform => [
     platform,
     { oauth: oauthConfigured(oauth[platform]) ? "configured" : "not_configured" },
@@ -57,6 +57,10 @@ export function buildPublishingDiagnostics({ jobs = [], oauth = {}, now = Date.n
     },
     cleanupPolicy: {
       retentionDays: CLEANUP_RETENTION_DAYS,
+      automaticDeletion: false,
+    },
+    persistence: {
+      unreadableJobs: Array.isArray(persistence.unreadableJobs) ? persistence.unreadableJobs.map(({ id, code, message }) => ({ id, code, message })) : [],
       automaticDeletion: false,
     },
   };
