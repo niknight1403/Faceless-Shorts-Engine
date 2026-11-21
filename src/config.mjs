@@ -20,12 +20,21 @@ function booleanSetting(env, name, fallback = false) {
   throw new Error(`${name} muss true oder false sein.`);
 }
 
+function profileSetting(env) {
+  const profile = env.APP_PROFILE || "development";
+  if (!["development", "staging", "production-safe"].includes(profile)) {
+    throw new Error("APP_PROFILE muss development, staging oder production-safe sein.");
+  }
+  return profile;
+}
+
 function configuredPath(value, fallback) {
   const path = value || fallback;
   return isAbsolute(path) ? path : resolve(projectRoot, path);
 }
 
 export function loadConfig(env = process.env) {
+  const profile = profileSetting(env);
   const dataDir = configuredPath(env.JOB_DATA_DIR, "./data/jobs");
   const publishingDataDir = configuredPath(env.PUBLISHING_DATA_DIR, "./data/publishing");
   const providerBaseUrl = (env.MOCK_MEDIA_URL || "http://127.0.0.1:4010").replace(/\/+$/, "");
@@ -44,6 +53,13 @@ export function loadConfig(env = process.env) {
     throw new Error("MOCK_MEDIA_URL muss HTTP oder HTTPS verwenden.");
   }
 
+  if (profile !== "development") {
+    if (publishingEnabled) throw new Error(`Publishing muss im Profil ${profile} deaktiviert bleiben.`);
+    if (!["127.0.0.1", "::1", "localhost"].includes(parsedProviderUrl.hostname)) {
+      throw new Error(`MOCK_MEDIA_URL muss im Profil ${profile} auf einen lokalen Mock zeigen.`);
+    }
+  }
+
   if (publishingEnabled) {
     if (!new Set(["127.0.0.1", "::1", "localhost"]).has(host)) {
       throw new Error("Publishing darf nur an eine Loopback-Adresse gebunden werden.");
@@ -56,6 +72,11 @@ export function loadConfig(env = process.env) {
   }
 
   return Object.freeze({
+    profile,
+    runtimeMode: profile === "development" ? "local-development" : "synthetic-staging",
+    storageAdapter: "local-filesystem",
+    providerAdapter: "mock-http",
+    livePublishingAllowed: false,
     host,
     port: integerSetting(env, "PORT", 3000, 1, 65535),
     providerBaseUrl,

@@ -1,6 +1,8 @@
 import { createServer } from "node:http";
 import { createReadStream } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, access, constants } from "node:fs/promises";
+import { promisify } from "node:util";
+import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import { loadConfig } from "../config.mjs";
@@ -17,6 +19,8 @@ import { OAuthTokenManager } from "../publishing/token-manager.mjs";
 import { PlatformConnectionService } from "../publishing/connection-service.mjs";
 import { PublishingService } from "../publishing/service.mjs";
 import { buildPublishingDiagnostics } from "../publishing/diagnostics.mjs";
+
+const execFileAsync = promisify(execFile);
 
 class ApiError extends Error {
   constructor(statusCode, code, message) {
@@ -166,6 +170,24 @@ function validatePublishMetadata(value, mode) {
 function requireObject(value, label = "Anfrage") {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new ApiError(400, "INVALID_REQUEST", `${label} muss ein JSON-Objekt sein.`);
   return value;
+}
+
+async function dependencyStatus(path, args = ["-version"]) {
+  try {
+    await execFileAsync(path, args, { timeout: 3_000, windowsHide: true });
+    return "ok";
+  } catch {
+    return "unavailable";
+  }
+}
+
+async function storageStatus(directory) {
+  try {
+    await access(directory, constants.R_OK | constants.W_OK);
+    return "ok";
+  } catch {
+    return "unavailable";
+  }
 }
 
 export async function createApiServer({
@@ -339,16 +361,33 @@ export async function createApiServer({
           youtube: oauthConfigured("youtube"),
           tiktok: oauthConfigured("tiktok"),
         };
+        const [jobStorageStatus, ffmpegStatus, ffprobeStatus] = await Promise.all([
+          storageStatus(config.dataDir),
+          dependencyStatus(config.ffmpegBin),
+          dependencyStatus(config.ffprobeBin),
+        ]);
         const configuredCount = Object.values(platformReadiness).filter(Boolean).length;
         const publishingStatus = !publishing
           ? "disabled"
           : configuredCount === 2 ? "ready" : configuredCount === 1 ? "partially_configured" : "oauth_not_configured";
-        const healthy = providerStatus === "ok";
+        const healthy = [providerStatus, jobStorageStatus, ffmpegStatus, ffprobeStatus].every(status => status === "ok");
         sendJson(response, healthy ? 200 : 503, {
           status: healthy ? "ok" : "degraded",
           readiness: healthy ? "ready" : "not_ready",
           service: "faceless-shorts-engine",
-          dependencies: { mockMediaProvider: providerStatus },
+          profile: {
+            name: config.profile,
+            runtimeMode: config.runtimeMode,
+            providerAdapter: config.providerAdapter,
+            storageAdapter: config.storageAdapter,
+            livePublishingAllowed: config.livePublishingAllowed,
+          },
+          dependencies: {
+            mockMediaProvider: providerStatus,
+            jobStorage: jobStorageStatus,
+            ffmpeg: ffmpegStatus,
+            ffprobe: ffprobeStatus,
+          },
           publishing: {
             enabled: Boolean(publishing),
             status: publishingStatus,

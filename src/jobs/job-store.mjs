@@ -78,6 +78,10 @@ export class JobStore {
       .map(job => structuredClone(job));
   }
 
+  diagnostics() {
+    return { adapter: "local-filesystem", initialized: true, jobCount: this.jobs.size };
+  }
+
   findByIdempotencyKey(key) {
     const jobId = this.idempotencyIndex.get(key);
     return jobId ? this.get(jobId) : null;

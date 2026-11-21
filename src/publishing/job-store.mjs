@@ -57,7 +57,11 @@ export class PublishingJobStore {
   }
 
   diagnostics() {
-    return { unreadableJobs: this.loadIssues.map(issue => ({ ...issue })) };
+    return {
+      adapter: "local-filesystem",
+      initialized: true,
+      unreadableJobs: this.loadIssues.map(issue => ({ ...issue })),
+    };
   }
 
   async create({ sourceJobId, platform, accountId, metadata = {}, idempotencyKey = null, sourceSnapshot = null }) {
