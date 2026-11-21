@@ -17,6 +17,7 @@ export class JobStore {
     this.jobs = new Map();
     this.idempotencyIndex = new Map();
     this.writeLocks = new Map();
+    this.createLock = Promise.resolve();
   }
 
   async initialize() {
@@ -39,32 +40,36 @@ export class JobStore {
   }
 
   async create({ topic, durationSeconds, idempotencyKey = null }) {
-    if (idempotencyKey) {
-      const existingId = this.idempotencyIndex.get(idempotencyKey);
-      if (existingId) return { job: this.get(existingId), created: false };
-    }
+    const operation = this.createLock.then(async () => {
+      if (idempotencyKey) {
+        const existingId = this.idempotencyIndex.get(idempotencyKey);
+        if (existingId) return { job: this.get(existingId), created: false };
+      }
 
-    const now = new Date().toISOString();
-    const job = {
-      id: randomUUID(),
-      topic,
-      durationSeconds,
-      idempotencyKey,
-      status: "queued",
-      progress: 0,
-      currentStep: "queued",
-      steps: [],
-      output: null,
-      error: null,
-      createdAt: now,
-      updatedAt: now,
-      completedAt: null,
-    };
+      const now = new Date().toISOString();
+      const job = {
+        id: randomUUID(),
+        topic,
+        durationSeconds,
+        idempotencyKey,
+        status: "queued",
+        progress: 0,
+        currentStep: "queued",
+        steps: [],
+        output: null,
+        error: null,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: null,
+      };
 
-    this.jobs.set(job.id, job);
-    if (idempotencyKey) this.idempotencyIndex.set(idempotencyKey, job.id);
-    await this.persist(job);
-    return { job: structuredClone(job), created: true };
+      await this.persist(job);
+      this.jobs.set(job.id, job);
+      if (idempotencyKey) this.idempotencyIndex.set(idempotencyKey, job.id);
+      return { job: structuredClone(job), created: true };
+    });
+    this.createLock = operation.then(() => {}, () => {});
+    return operation;
   }
 
   get(jobId) {

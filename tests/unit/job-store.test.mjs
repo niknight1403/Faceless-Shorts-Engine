@@ -38,3 +38,38 @@ test("JobStore persistiert Jobs, dedupliziert Idempotency-Keys und serialisiert 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("gleichzeitige Anlage mit gleichem Schlüssel erzeugt genau einen dauerhaften Auftrag", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "faceless-job-store-"));
+  try {
+    const store = await new JobStore(directory).initialize();
+    const results = await Promise.all(Array.from({ length: 10 }, (_, index) =>
+      store.create({ topic: `Thema ${index}`, durationSeconds: 5, idempotencyKey: "parallel" })));
+    assert.equal(results.filter(result => result.created).length, 1);
+    assert.equal(new Set(results.map(result => result.job.id)).size, 1);
+    assert.equal(store.list().length, 1);
+    const reloaded = await new JobStore(directory).initialize();
+    assert.equal(reloaded.list().length, 1);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("fehlgeschlagene Anlage bleibt unsichtbar und kann wiederholt werden", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "faceless-job-store-"));
+  try {
+    const store = await new JobStore(directory).initialize();
+    const persist = store.persist.bind(store);
+    store.persist = async () => { throw new Error("simulierter Schreibfehler"); };
+    const input = { topic: "Test", durationSeconds: 5, idempotencyKey: "retry" };
+    await assert.rejects(store.create(input), /simulierter Schreibfehler/);
+    assert.equal(store.list().length, 0);
+    assert.equal(store.findByIdempotencyKey("retry"), null);
+    store.persist = persist;
+    const result = await store.create(input);
+    assert.equal(result.created, true);
+    assert.equal((await new JobStore(directory).initialize()).list().length, 1);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
