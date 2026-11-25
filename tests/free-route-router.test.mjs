@@ -17,3 +17,13 @@ test("failed route cools down and fallback succeeds", async () => {
   assert.equal(await router.execute("text",{}),"ok");
   assert.equal(calls,1);
 });
+
+test("stalled provider times out and fallback succeeds", async () => {
+  let signal;
+  const router = new FreeRouteRouter([
+    {zeroCost:true,text:async (_, options)=>{signal=options.signal;return new Promise(()=>{});}},
+    {zeroCost:true,text:async()=>"fallback"}
+  ],{timeoutMs:20});
+  assert.equal(await router.execute("text",{}),"fallback");
+  assert.equal(signal.aborted,true);
+});
