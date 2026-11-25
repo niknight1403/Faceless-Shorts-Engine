@@ -9,6 +9,8 @@ import { loadConfig } from "../config.mjs";
 import { JobStore } from "../jobs/job-store.mjs";
 import { JobNotFoundError } from "../jobs/job-store.mjs";
 import { JobRunner } from "../jobs/job-runner.mjs";
+import { createTextRegistry } from "../providers/text-registry.mjs";
+import { LocalSpeech } from "../providers/local-speech.mjs";
 import { MockMediaProvider } from "../providers/mock-media-provider.mjs";
 import { VideoRenderer } from "../render/render-short.mjs";
 import { VideoValidator } from "../render/validate-video.mjs";
@@ -196,9 +198,13 @@ export async function createApiServer({
   renderer = new VideoRenderer({ ffmpegBin: config.ffmpegBin, timeoutMs: config.renderTimeoutMs }),
   validator = new VideoValidator({ ffprobeBin: config.ffprobeBin }),
   fetchImpl = fetch,
+  textRegistry = process.env.SHORTS_AI_ENABLED === "true" ? createTextRegistry(process.env, {fetchImpl}) : null,
+  speechProvider = process.env.SHORTS_LOCAL_SPEECH === "true" ? new LocalSpeech({voice:process.env.SHORTS_SPEECH_VOICE || "de"}) : null,
 } = {}) {
+  if (textRegistry && textRegistry.configuredRoutes === 0) throw new Error("AI enabled but no text routes configured");
+  if ((textRegistry || speechProvider) && !["127.0.0.1","localhost","::1"].includes(config.host)) throw new Error("AI production requires local binding");
   const store = await new JobStore(config.dataDir).initialize();
-  const runner = new JobRunner({ store, provider, renderer, validator, config });
+  const runner = new JobRunner({ store, provider, renderer, validator, config, textRegistry, speechProvider });
   await runner.recover();
 
   let publishing = null;
