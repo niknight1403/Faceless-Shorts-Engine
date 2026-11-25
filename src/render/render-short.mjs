@@ -68,7 +68,7 @@ export class VideoRenderer {
     this.timeoutMs = timeoutMs;
   }
 
-  async render({ imagePath, audioPath, outputPath, caption, durationSeconds }) {
+  async render({ imagePath, audioPath, outputPath, caption, durationSeconds, speech = false }) {
     await mkdir(dirname(outputPath), { recursive: true });
     const started = performance.now();
     const captionPath = join(dirname(outputPath), "caption.txt");
@@ -79,20 +79,20 @@ export class VideoRenderer {
     const filter = [
       "scale=1080:1920:force_original_aspect_ratio=increase",
       "crop=1080:1920",
-      `drawtext=font='sans':textfile='${escapeFilterPath(captionPath)}':fontcolor=white:fontsize=58:box=1:boxcolor=black@0.65:boxborderw=24:x=(w-text_w)/2:y=h*0.72`,
+      `drawtext=expansion=none:font='sans':textfile='${escapeFilterPath(captionPath)}':fontcolor=white:fontsize=58:box=1:boxcolor=black@0.65:boxborderw=24:x=(w-text_w)/2:y=h*0.72`,
     ].join(",");
 
     const args = [
       "-hide_banner", "-loglevel", "error", "-y",
       "-framerate", "30", "-loop", "1", "-i", imagePath,
-      "-stream_loop", "-1", "-i", audioPath,
+      ...(speech ? [] : ["-stream_loop", "-1"]), "-i", audioPath,
       "-map", "0:v:0", "-map", "1:a:0",
       "-vf", filter,
       "-t", String(durationSeconds),
       "-r", "30",
       "-c:v", "libx264", "-preset", "veryfast", "-crf", "26",
       "-pix_fmt", "yuv420p",
-      "-c:a", "aac", "-b:a", "128k", "-af", "volume=0.08",
+      "-c:a", "aac", "-b:a", "128k", "-af", speech ? "apad,volume=1" : "volume=0.08",
       "-movflags", "+faststart",
       temporaryOutput,
     ];
