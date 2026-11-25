@@ -69,6 +69,8 @@ export class JobRunner {
         const jobId = this.queue.shift();
         try {
           await this.run(jobId);
+        } catch (error) {
+          console.error(`[job:${jobId}] Queue error: ${error.code || error.name || "UNKNOWN"}`);
         } finally {
           this.scheduled.delete(jobId);
         }
@@ -84,9 +86,8 @@ export class JobRunner {
     if (!job || job.status !== "queued") return;
     const jobDirectory = this.store.getJobDirectory(jobId);
     const assetDirectory = join(jobDirectory, "assets");
-    await mkdir(assetDirectory, { recursive: true });
-
     try {
+      await mkdir(assetDirectory, { recursive: true });
       const imagePath = join(assetDirectory, "scene.png");
       const audioPath = join(assetDirectory, "voice.wav");
       const outputPath = join(jobDirectory, "final.mp4");
