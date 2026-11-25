@@ -1,15 +1,20 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+
+import { planScript } from "../content/script-planner.mjs";
+import { createSubtitles } from "../content/subtitles.mjs";
 
 const ACTIVE_STATUSES = new Set(["generating_assets", "rendering", "validating"]);
 
 export class JobRunner {
-  constructor({ store, provider, renderer, validator, config }) {
+  constructor({ store, provider, renderer, validator, config, textRegistry = null, speechProvider = null }) {
     this.store = store;
     this.provider = provider;
     this.renderer = renderer;
     this.validator = validator;
     this.config = config;
+    this.textRegistry = textRegistry;
+    this.speechProvider = speechProvider;
     this.queue = [];
     this.scheduled = new Set();
     this.isPumping = false;
@@ -92,18 +97,28 @@ export class JobRunner {
       const audioPath = join(assetDirectory, "voice.wav");
       const outputPath = join(jobDirectory, "final.mp4");
 
+      let plan = null;
+      if (this.textRegistry) {
+        plan = await this.runStep(jobId, "plan_script", "generating_assets", 5, async () => {
+          const result = await planScript(this.textRegistry, job);
+          await writeFile(join(assetDirectory, "script.json"), JSON.stringify(result), {mode:0o600});
+          await writeFile(join(assetDirectory, "subtitles.srt"), createSubtitles(result.scenes), {mode:0o600});
+          return result;
+        });
+      }
       await this.runStep(jobId, "fetch_image", "generating_assets", 10, async () => {
-        return this.provider.fetchImage({ prompt: job.topic, outputPath: imagePath });
+        return this.provider.fetchImage({ prompt: plan?.scenes[0].visual || job.topic, outputPath: imagePath });
       });
       await this.runStep(jobId, "fetch_audio", "generating_assets", 22, async () => {
-        return this.provider.synthesizeSpeech({ text: job.topic, outputPath: audioPath });
+        return (this.speechProvider || this.provider).synthesizeSpeech({ text: plan ? plan.scenes.map(s => s.narration).join(" ") : job.topic, outputPath: audioPath });
       });
       await this.runStep(jobId, "render_video", "rendering", 55, async () => {
         return this.renderer.render({
           imagePath,
           audioPath,
           outputPath,
-          caption: job.topic,
+          caption: plan?.title || job.topic,
+          speech: Boolean(this.speechProvider),
           durationSeconds: job.durationSeconds,
         });
       });
